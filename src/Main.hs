@@ -18,8 +18,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Main (main) where
-
 import Control.Conditional (unlessM)
 import qualified Control.Exception as E
 import Control.Lens ((^..), (^.), (&), (.~))
@@ -47,7 +45,6 @@ import Text.Printf(printf)
 
 
 
-
 -- | Join a list of strings with a delimiter.
 join delim xs = concat (intersperse delim xs)
 
@@ -57,6 +54,10 @@ argify xs = filter (/= "") $ concatMap (splitOn ",") xs
 -- | Return the TOML filename, ending with .toml
 tomlFileName :: String -> FilePath
 tomlFileName = printf "%s.toml"
+
+-- | Return the TOML filename, ending with .frozen.toml
+frozenTomlFileName :: String -> FilePath
+frozenTomlFileName = tomlFileName . printf "%s.frozen"
 
 -- | Convert the Value into a pretty JSON string for printing.
 prettyJson :: Value -> String
@@ -116,13 +117,16 @@ parseOpts argv =
 
 helpText :: String
 helpText = "\
-\  recipes list                  List the names of the available recipes.\n\
-\          show <recipe,...>     Display the recipe in TOML format.\n\
-\          save <recipe,...>     Save the recipe to a file, <recipe-name>.toml\n\
-\          depsolve <recipe,...> Display the packages needed to install the recipe.\n\
-\          push <recipe>         Push a recipe TOML file to the server.\n\
-\  modules list                  List the available modules.\n\
-\  projects list                 List the available projects.\n\
+\  recipes list                     List the names of the available recipes.\n\
+\          show <recipe,...>        Display the recipe in TOML format.\n\
+\          save <recipe,...>        Save the recipe to a file, <recipe-name>.toml\n\
+\          depsolve <recipe,...>    Display the packages needed to install the recipe.\n\
+\          push <recipe>            Push a recipe TOML file to the server.\n\
+\          freeze <recipe,...>      Display the frozen recipe's modules and packages.\n\
+\          freeze show <recipe,...> Display the frozen recipe in TOML format.\n\
+\          freeze save <recipe,...> Save the frozen recipe to a file, <recipe-name>.frozen.toml.\n\
+\  modules list                     List the available modules.\n\
+\  projects list                    List the available projects.\n\
 \\n"
 
 helpCommand :: [String] -> IO ()
@@ -163,6 +167,15 @@ infoRecipes sess opts recipe = getUrl sess $ api_url opts "recipes/info/" ++ rec
 depsolveRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
 depsolveRecipes sess opts recipes = getUrl sess $ api_url opts "recipes/depsolve/" ++ recipes
 
+-- | Request the frozen recipe from the API server in TOML format
+freezeRecipeToml :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
+freezeRecipeToml sess opts recipe = getUrl sess $ api_url opts "recipes/freeze/" ++ recipe ++ "?format=toml"
+
+-- | Request the frozen recipe from the API server in JSON format
+freezeRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
+freezeRecipes sess opts recipes = getUrl sess $ api_url opts "recipes/freeze/" ++ recipes
+
+{-# ANN newRecipes ("HLint: ignore Eta reduce"::String) #-}
 -- | POST a new TOML recipe to the API server
 newRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
 newRecipes sess opts bodyStr = postUrl sess (api_url opts "recipes/new") bodyStr
@@ -223,6 +236,20 @@ instance ToJSON RecipeDeps where
         "recipe"       .= rdRecipe
       , "modules"      .= rdModules
       , "dependencies" .= rdDependencies ]
+
+
+data FreezeJSON =
+    FreezeJSON { fjRecipes :: [Recipe]
+    } deriving Show
+
+instance FromJSON FreezeJSON where
+  parseJSON = withObject "freeze JSON" $ \o -> do
+    fjRecipes <- o .: "recipes"
+    return FreezeJSON{..}
+
+instance ToJSON FreezeJSON where
+  toJSON FreezeJSON{..} = object [
+    "recipes" .= fjRecipes ]
 
 
 data Recipe =
@@ -310,22 +337,37 @@ packageNEVRA PackageNEVRA{..} =
     then printf "%s-%s-%s.%s" pnName pnVersion pnRelease pnArch
     else printf "%s-%d:%s-%s.%s" pnName pnEpoch pnVersion pnRelease pnArch
 
+moduleNameVersion :: RecipeModule -> String
+moduleNameVersion RecipeModule{..} = printf "%s-%s" rmName rmVersion
+
+-- | Get the recipe's modules
+getModules :: Recipe -> [RecipeModule]
+getModules Recipe{..} = rModules
+
+-- | Get the recipe's packages
+getPackages :: Recipe -> [RecipeModule]
+getPackages Recipe{..} = rPackages
+
 -- | Get the Recipe from the depsolve results
-getRecipe :: RecipeDeps -> Recipe
-getRecipe RecipeDeps{..} = rdRecipe
+getDepRecipe :: RecipeDeps -> Recipe
+getDepRecipe RecipeDeps{..} = rdRecipe
 
 -- | Get the module list from the depsolve
 -- includes the exact versions of the recipe's modules and packages
-getModules :: RecipeDeps -> [PackageNEVRA]
-getModules RecipeDeps{..} = rdModules
+getDepModules :: RecipeDeps -> [PackageNEVRA]
+getDepModules RecipeDeps{..} = rdModules
 
 -- | Get all the dependencies needed for the recipe
 getDependencies :: RecipeDeps -> [PackageNEVRA]
 getDependencies RecipeDeps{..} = rdDependencies
 
 -- | Get the depsolved recipes from the request results
-getRecipes :: DependencyJSON -> [RecipeDeps]
-getRecipes DependencyJSON{..} = djRecipes
+getDepRecipes :: DependencyJSON -> [RecipeDeps]
+getDepRecipes DependencyJSON{..} = djRecipes
+
+-- | Get the frozen recipes from the request results
+getFrozenRecipes :: FreezeJSON -> [Recipe]
+getFrozenRecipes FreezeJSON{..} = fjRecipes
 
 
 -- | Convert the server response into data structures
@@ -334,19 +376,33 @@ decodeDepsolve resp = decode $ resp ^. responseBody
 
 -- | Extract the names and versions of the recipes in the depsolve response
 recipesList :: DependencyJSON -> [String]
-recipesList deps = map (recipeNameVersion . getRecipe) $ getRecipes deps
+recipesList deps = map (recipeNameVersion . getDepRecipe) $ getDepRecipes deps
 
 -- | Extract the dependency list from the depsolve response
 dependenciesList :: RecipeDeps -> [String]
 dependenciesList recipeDeps = map (\p -> "    " ++ packageNEVRA p) $ getDependencies recipeDeps
 
 -- | Return the dependencies for each recipe in the depsolve response
+-- Returns a list of strings for each recipe, a list of lists where the outer list is one per recipe.
 recipesDepsList :: DependencyJSON -> [[String]]
-recipesDepsList deps = map recipeDetails $ getRecipes deps
+recipesDepsList deps = map recipeDetails $ getDepRecipes deps
   where
     recipeDetails recipeDeps = [name recipeDeps] ++ dependenciesList recipeDeps
-    name = recipeNameVersion . getRecipe
+    name = recipeNameVersion . getDepRecipe
 
+-- | Convert the server response into data structures
+decodeFreeze :: Response C8.ByteString -> Maybe FreezeJSON
+decodeFreeze resp = decode $ resp ^. responseBody
+
+{-# ANN recipesFrozenList ("HLint: ignore Eta reduce"::String) #-}
+-- | Return the module and package versions for each recipe.
+-- Returns a list of strings for each recipe, a list of lists where the outer list is one per recipe.
+recipesFrozenList :: FreezeJSON -> [[String]]
+recipesFrozenList recipes = map recipeDetails $ getFrozenRecipes recipes
+  where
+    recipeDetails recipe = [recipeNameVersion recipe] ++ moduleDetails recipe ++ packageDetails recipe
+    moduleDetails recipe = map (\m -> "    " ++ moduleNameVersion m) $ getModules recipe
+    packageDetails recipe = map (\p -> "    " ++ moduleNameVersion p) $ getPackages recipe
 
 -- | Process the recipes list command
 -- Prints a JSON or human reable list of available recipes
@@ -409,6 +465,35 @@ recipesCommand sess opts ("push":xs) = pushRecipe $ argify xs
 recipesCommand _    _    (x:xs) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
 recipesCommand _    _    _      = putStrLn "ERROR: Missing recipes command"
 
+-- | Process the recipes freeze show command
+-- Show the frozen recipe in TOML format
+recipesFreeze sess opts ("show":xs) = showFrozenRecipe $ argify xs
+  where
+    showFrozenRecipe (x:xs) = do
+        r <- freezeRecipeToml sess opts x
+        when (isJust r) $ putStrLn $ C8.unpack $ fromJust r ^. responseBody
+        showFrozenRecipe xs
+    showFrozenRecipe [] = putStrLn ""
+
+-- | Process the recipes freeze show command
+-- Save the frozen recipe in TOML format, as <recipe name>.frozen.toml
+recipesFreeze sess opts ("save":xs) = saveFrozenRecipe $ argify xs
+  where
+    saveFrozenRecipe (x:xs) = do
+        r <- freezeRecipeToml sess opts x
+        when (isJust r) $ writeFile (frozenTomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
+        saveFrozenRecipe xs
+    saveFrozenRecipe [] = putStrLn ""         -- How to do a 'pass' here?
+
+-- | Process the recipes freeze
+-- Display the recipes' frozen module and packages list in human readable format
+recipesFreeze sess opts xs = do
+    r <- freezeRecipes sess opts (join "," xs)
+    when (isJust r) $ do
+        let recipes = decodeFreeze $ fromJust r
+        when (isJust recipes) $ putStrLn $ join "\n\n" $ map (join "\n") $ recipesFrozenList $ fromJust recipes
+
+
 -- | Process the modules list command
 -- Print a list of the available modules
 modulesCommand :: Session -> CliOptions -> [String] -> IO ()
@@ -438,11 +523,12 @@ projectsCommand _    _    _      = putStrLn "ERROR: Missing projects command"
 
 -- Execute a command and print the results
 parseCommand :: Session -> CliOptions -> [String] -> IO ()
-parseCommand sess opts ("recipes":xs)      = recipesCommand sess opts xs
-parseCommand sess opts ("modules":xs)      = modulesCommand sess opts xs
-parseCommand sess opts ("projects":xs)     = projectsCommand sess opts xs
-parseCommand sess opts ("help":xs)         = helpCommand xs
-parseCommand _    _    _                   = putStrLn "Unknown Command"
+parseCommand sess opts ("recipes":"freeze":xs) = recipesFreeze sess opts xs
+parseCommand sess opts ("recipes":xs)          = recipesCommand sess opts xs
+parseCommand sess opts ("modules":xs)          = modulesCommand sess opts xs
+parseCommand sess opts ("projects":xs)         = projectsCommand sess opts xs
+parseCommand sess opts ("help":xs)             = helpCommand xs
+parseCommand _    _    _                       = putStrLn "Unknown Command"
 
 main :: IO ()
 main = S.withSession $ \sess -> do
