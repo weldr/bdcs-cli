@@ -36,14 +36,12 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import Network.Wreq
 import Network.Wreq.Session as S
-import System.Console.GetOpt
 import System.Directory(doesFileExist)
-import System.Environment (getArgs)
 import System.Exit(exitFailure)
 import System.IO
 import Text.Printf(printf)
 
-
+import Cmdline(CliOptions(..), parseArgs, helpCommand)
 
 -- | Join a list of strings with a delimiter.
 join delim xs = concat (intersperse delim xs)
@@ -66,74 +64,6 @@ prettyJson json = C8.unpack $ encodePretty json
 -- | Turn exceptions from an action into Nothing
 maybeIO :: IO a -> IO (Maybe a)
 maybeIO act = E.handle (\(e::E.SomeException) -> (return Nothing)) (Just `liftM` act)
-
-
---
--- Commandline parsing
---
-
-data CliOptions = CliOptions
-    { optVerbose     :: Bool
-    , optShowVersion :: Bool
-    , optJsonOutput  :: Bool
-    , optUrl         :: String
-    , optApi         :: String
-    } deriving Show
-
-defaultOptions    = CliOptions
-    { optVerbose     = False
-    , optShowVersion = False
-    , optJsonOutput  = False
-    , optUrl         = "http://localhost:4000/"
-    , optApi         = "0"
-    }
-
-cliOptions :: [OptDescr (CliOptions -> CliOptions)]
-cliOptions =
-    [ Option ['v']     ["verbose"]
-        (NoArg (\opts -> opts { optVerbose = True }))
-        "Verbose output"
-    , Option ['V','?'] ["version"]
-        (NoArg (\opts -> opts { optShowVersion = True }))
-        "show version number"
-    , Option ['j'] ["json"]
-        (NoArg (\opts -> opts { optJsonOutput = True }))
-        "Show results as JSON objects"
-    , Option ['u']     ["url"]
-        (ReqArg (\url opts -> opts { optUrl = url }) "URL")
-        "URL to use for the API requests"
-    , Option ['a']     ["api"]
-        (ReqArg (\api opts -> opts { optApi = api }) "API")
-        "URL to use for the API requests"
-    ]
-cliHeader = "Usage: bdcs-cli [OPTIONS...] commands..."
-
-parseOpts :: [String] -> IO (CliOptions, [String])
-parseOpts argv =
-    case getOpt Permute cliOptions argv of
-        (o,n,[]  ) -> return (foldl (flip id) Main.defaultOptions o, n)
-        (_,_,errs) -> ioError (userError (concat errs ++ usageInfo cliHeader cliOptions))
-
-
-helpText :: String
-helpText = "\
-\  recipes list                     List the names of the available recipes.\n\
-\          show <recipe,...>        Display the recipe in TOML format.\n\
-\          save <recipe,...>        Save the recipe to a file, <recipe-name>.toml\n\
-\          depsolve <recipe,...>    Display the packages needed to install the recipe.\n\
-\          push <recipe>            Push a recipe TOML file to the server.\n\
-\          freeze <recipe,...>      Display the frozen recipe's modules and packages.\n\
-\          freeze show <recipe,...> Display the frozen recipe in TOML format.\n\
-\          freeze save <recipe,...> Save the frozen recipe to a file, <recipe-name>.frozen.toml.\n\
-\  modules list                     List the available modules.\n\
-\  projects list                    List the available projects.\n\
-\\n"
-
-helpCommand :: [String] -> IO ()
-helpCommand _ = do
-    putStrLn $ usageInfo cliHeader cliOptions
-    putStr helpText
-
 
 -- | Print the API URL selection (or the default)
 printUrl :: CliOptions -> IO ()
@@ -532,8 +462,7 @@ parseCommand _    _    _                       = putStrLn "Unknown Command"
 
 main :: IO ()
 main = S.withSession $ \sess -> do
-    args <- getArgs
-    r <- parseOpts args
+    r <- parseArgs
     let opts = fst r
     let commands = snd r
     when (optVerbose opts) $ do
