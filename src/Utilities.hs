@@ -14,26 +14,24 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-import Control.Monad (when)
-import Network.Wreq.Session as S
+module Utilities(argify,
+                 join,
+                 maybeIO)
+  where
 
-import Cmdline(CliOptions(..), parseArgs)
-import Commands(parseCommand)
+import qualified Control.Exception as E
+import Control.Monad (liftM)
+import Data.List (intersperse)
+import Data.List.Split (splitOn)
 
--- | Print the API URL selection (or the default)
-printUrl :: CliOptions -> IO ()
-printUrl CliOptions{..} = putStrLn optUrl
+-- | Turn exceptions from an action into Nothing
+maybeIO :: IO a -> IO (Maybe a)
+maybeIO act = E.handle (\(e::E.SomeException) -> (return Nothing)) (Just `liftM` act)
 
+-- | Join a list of strings with a delimiter.
+join delim xs = concat (intersperse delim xs)
 
-main :: IO ()
-main = S.withSession $ \sess -> do
-    r <- parseArgs
-    let opts = fst r
-    let commands = snd r
-    when (optVerbose opts) $ do
-        print opts
-        print commands
-        printUrl opts
-    parseCommand sess opts commands
+-- | Take a list of possiby comma, or comma-space, separated options and turn it into a list of options
+argify xs = filter (/= "") $ concatMap (splitOn ",") xs
