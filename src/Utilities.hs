@@ -16,14 +16,22 @@
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Utilities(maybeIO)
+module Utilities(argify,
+                 join,
+                 maybeIO)
   where
 
 import qualified Control.Exception as E
 import Control.Monad (liftM)
+import Data.List (intersperse)
+import Data.List.Split (splitOn)
 
 -- | Turn exceptions from an action into Nothing
 maybeIO :: IO a -> IO (Maybe a)
 maybeIO act = E.handle (\(e::E.SomeException) -> (return Nothing)) (Just `liftM` act)
 
+-- | Join a list of strings with a delimiter.
+join delim xs = concat (intersperse delim xs)
 
+-- | Take a list of possiby comma, or comma-space, separated options and turn it into a list of options
+argify xs = filter (/= "") $ concatMap (splitOn ",") xs
