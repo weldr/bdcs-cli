@@ -16,12 +16,10 @@
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 import Control.Conditional (unlessM)
-import qualified Control.Exception as E
 import Control.Lens ((^..), (^.), (&), (.~))
-import Control.Monad (liftM, when, mzero)
+import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.Aeson.Lens (_Array, _String, members, key, values, nth)
@@ -42,6 +40,7 @@ import System.IO
 import Text.Printf(printf)
 
 import Cmdline(CliOptions(..), parseArgs, helpCommand)
+import API.V0
 
 -- | Join a list of strings with a delimiter.
 join delim xs = concat (intersperse delim xs)
@@ -61,66 +60,9 @@ frozenTomlFileName = tomlFileName . printf "%s.frozen"
 prettyJson :: Value -> String
 prettyJson json = C8.unpack $ encodePretty json
 
--- | Turn exceptions from an action into Nothing
-maybeIO :: IO a -> IO (Maybe a)
-maybeIO act = E.handle (\(e::E.SomeException) -> (return Nothing)) (Just `liftM` act)
-
 -- | Print the API URL selection (or the default)
 printUrl :: CliOptions -> IO ()
 printUrl CliOptions{..} = putStrLn optUrl
-
--- | Construct an API URL based on cmdline options or defaults.
-api_url :: CliOptions -> String -> String
-api_url CliOptions{..} route = optUrl ++ "api/v" ++ optApi ++ "/" ++ route
-
--- | Fetch data from a URL and ignore errors by returning Nothing, or a Lazy ByteString
-getUrl :: Session -> String -> IO (Maybe (Response BSL.ByteString))
-getUrl sess url = maybeIO (S.get sess url)
-
--- | Post a String to a URL and return the Response from the server, or Nothing
-postUrl :: Session -> String -> String -> IO (Maybe (Response BSL.ByteString))
-postUrl sess url bodyStr = do
-    let opts = defaults & header "Content-Type" .~ ["text/x-toml"]
-    let bodyBytes = C8.pack bodyStr
-    maybeIO (S.postWith opts sess url bodyBytes)
-
-
--- | Request the list of recipes from the API server
-listRecipes :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))
-listRecipes sess opts = getUrl sess $ api_url opts "recipes/list"
-
--- | Request the TOML copy of the Recipe from the API server
-infoRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-infoRecipes sess opts recipe = getUrl sess $ api_url opts "recipes/info/" ++ recipe ++ "?format=toml"
-
--- | Request the dependecies for the recipe from the APO server
-depsolveRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-depsolveRecipes sess opts recipes = getUrl sess $ api_url opts "recipes/depsolve/" ++ recipes
-
--- | Request the frozen recipe from the API server in TOML format
-freezeRecipeToml :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-freezeRecipeToml sess opts recipe = getUrl sess $ api_url opts "recipes/freeze/" ++ recipe ++ "?format=toml"
-
--- | Request the frozen recipe from the API server in JSON format
-freezeRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-freezeRecipes sess opts recipes = getUrl sess $ api_url opts "recipes/freeze/" ++ recipes
-
-{-# ANN newRecipes ("HLint: ignore Eta reduce"::String) #-}
--- | POST a new TOML recipe to the API server
-newRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-newRecipes sess opts bodyStr = postUrl sess (api_url opts "recipes/new") bodyStr
-
--- | Request a list of the available modules from the API server
-listModules :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))
-listModules sess opts = getUrl sess $ api_url opts "modules/list"
-
--- | Request a list of the available projects from the API server
-listProjects :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))
-listProjects sess opts = getUrl sess $ api_url opts "projects/list"
-
--- | Request detailed info for a list of projects
-infoProjects :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-infoProjects sess opts projects = getUrl sess $ api_url opts "projects/info/" ++ projects
 
 
 -- | Extract the list of recipes from the server Response Value
