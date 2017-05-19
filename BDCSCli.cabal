@@ -53,4 +53,5 @@ test-suite spec
   build-depends:        base,
                         hspec,
                         BDCSCli
+  other-modules:        BDCSCli.UtilitiesSpec
   default-language:     Haskell2010
