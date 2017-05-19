@@ -19,8 +19,8 @@
 import Control.Monad (when)
 import Network.Wreq.Session as S
 
-import Cmdline(CliOptions(..), parseArgs)
-import Commands(parseCommand)
+import BDCSCli.Cmdline(CliOptions(..), parseArgs)
+import BDCSCli.Commands(parseCommand)
 
 -- | Print the API URL selection (or the default)
 printUrl :: CliOptions -> IO ()

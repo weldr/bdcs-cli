@@ -16,9 +16,9 @@
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Utilities(argify,
-                 join,
-                 maybeIO)
+module BDCSCli.Utilities(argify,
+                         join,
+                         maybeIO)
   where
 
 import qualified Control.Exception as E

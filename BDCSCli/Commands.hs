@@ -16,7 +16,7 @@
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedStrings #-}
 
-module Commands(parseCommand)
+module BDCSCli.Commands(parseCommand)
   where
 
 import Control.Conditional (unlessM)
@@ -34,9 +34,9 @@ import Text.Printf(printf)
 import System.Directory(doesFileExist)
 import System.Exit(exitFailure)
 
-import API.V0
-import Cmdline(CliOptions(..), helpCommand)
-import Utilities(argify, join)
+import BDCSCli.API.V0
+import BDCSCli.Cmdline(CliOptions(..), helpCommand)
+import BDCSCli.Utilities(argify, join)
 
 -- | Return the TOML filename, ending with .toml
 tomlFileName :: String -> FilePath

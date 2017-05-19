@@ -17,22 +17,22 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module API.V0(listRecipes,
-              infoRecipes,
-              depsolveRecipes,
-              freezeRecipeToml,
-              freezeRecipes,
-              newRecipes,
-              listModules,
-              listProjects,
-              infoProjects,
-              decodeDepsolve,
-              decodeFreeze,
-              recipesDepsList,
-              recipesFrozenList)
+module BDCSCli.API.V0(listRecipes,
+                      infoRecipes,
+                      depsolveRecipes,
+                      freezeRecipeToml,
+                      freezeRecipes,
+                      newRecipes,
+                      listModules,
+                      listProjects,
+                      infoProjects,
+                      decodeDepsolve,
+                      decodeFreeze,
+                      recipesDepsList,
+                      recipesFrozenList)
   where
 
-import Control.Lens ((^..), (^.), (&), (.~))
+import Control.Lens ((^.))
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
@@ -40,10 +40,8 @@ import Network.Wreq
 import Network.Wreq.Session(Session)
 import Text.Printf(printf)
 
-import Cmdline(CliOptions(..))
-import URL(apiUrl,
-           getUrl,
-           postUrl)
+import BDCSCli.Cmdline(CliOptions(..))
+import BDCSCli.URL(apiUrl, getUrl, postUrl)
 
 -- | Request the list of recipes from the API server
 listRecipes :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))

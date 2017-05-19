@@ -14,9 +14,9 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
-module Cmdline(CliOptions(..),
-               parseArgs,
-               helpCommand)
+module BDCSCli.Cmdline(CliOptions(..),
+                       parseArgs,
+                       helpCommand)
   where
 
 import System.Console.GetOpt

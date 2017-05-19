@@ -17,19 +17,19 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module URL(apiUrl,
-           getUrl,
-           postUrl)
+module BDCSCli.URL(apiUrl,
+                   getUrl,
+                   postUrl)
   where
 
-import Control.Lens ((^..), (^.), (&), (.~))
+import Control.Lens ((&), (.~))
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
 import Network.Wreq.Session as S
 import Network.Wreq
 
-import Cmdline(CliOptions(..))
-import Utilities(maybeIO)
+import BDCSCli.Cmdline(CliOptions(..))
+import BDCSCli.Utilities(maybeIO)
 
 -- | Construct an API URL based on cmdline options or defaults.
 apiUrl :: CliOptions -> String -> String
