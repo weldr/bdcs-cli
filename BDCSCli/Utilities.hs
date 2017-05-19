@@ -28,10 +28,12 @@ import Data.List.Split (splitOn)
 
 -- | Turn exceptions from an action into Nothing
 maybeIO :: IO a -> IO (Maybe a)
-maybeIO act = E.handle (\(e::E.SomeException) -> (return Nothing)) (Just `liftM` act)
+maybeIO act = E.handle (\(_::E.SomeException) -> (return Nothing)) (Just `liftM` act)
 
 -- | Join a list of strings with a delimiter.
+join :: [a] -> [[a]] -> [a]
 join delim xs = concat (intersperse delim xs)
 
 -- | Take a list of possiby comma, or comma-space, separated options and turn it into a list of options
+argify :: Foldable t => t [Char] -> [[Char]]
 argify xs = filter (/= "") $ concatMap (splitOn ",") xs
