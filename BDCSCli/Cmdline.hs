@@ -34,6 +34,7 @@ data CliOptions = CliOptions
     , optApi         :: String
     } deriving Show
 
+defaultOptions :: CliOptions
 defaultOptions    = CliOptions
     { optVerbose     = False
     , optShowVersion = False
@@ -60,6 +61,8 @@ cliOptions =
         (ReqArg (\api opts -> opts { optApi = api }) "API")
         "URL to use for the API requests"
     ]
+
+cliHeader :: String
 cliHeader = "Usage: bdcs-cli [OPTIONS...] commands..."
 
 parseOpts :: [String] -> IO (CliOptions, [String])
