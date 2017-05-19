@@ -20,11 +20,11 @@ module BDCSCli.Commands(parseCommand)
   where
 
 import Control.Conditional (unlessM)
-import Control.Lens ((^..), (^.), (&), (.~))
+import Control.Lens ((^..), (^.))
 import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
-import Data.Aeson.Lens (_Array, _String, members, key, values, nth)
+import Data.Aeson.Lens (_String, key, values)
 import qualified Data.ByteString.Lazy.Char8 as C8
 import Data.Maybe (isJust, fromJust)
 import qualified Data.Text as T
@@ -48,18 +48,18 @@ frozenTomlFileName = tomlFileName . printf "%s.frozen"
 
 -- | Convert the Value into a pretty JSON string for printing.
 prettyJson :: Value -> String
-prettyJson json = C8.unpack $ encodePretty json
+prettyJson jsonValue = C8.unpack $ encodePretty jsonValue
 
 -- | Extract the list of recipes from the server Response Value
 -- a, b, c, ...
 humanRecipesList :: Response Value -> String
-humanRecipesList json = join ", " $ map T.unpack recipes
-  where recipes = json ^.. responseBody . key "recipes" . values . _String
+humanRecipesList jsonValue = join ", " $ map T.unpack recipes
+  where recipes = jsonValue ^.. responseBody . key "recipes" . values . _String
 
 -- | Process the recipes list command
 -- Prints a JSON or human reable list of available recipes
 recipesCommand :: Session -> CliOptions -> [String] -> IO ()
-recipesCommand sess opts ("list":xs) = do
+recipesCommand sess opts ("list":_) = do
     r <- listRecipes sess opts
     when (isJust r) $ do
         j <- asValue $ fromJust r
@@ -71,23 +71,23 @@ recipesCommand sess opts ("list":xs) = do
 -- Print the TOML recipe
 recipesCommand sess opts ("show":xs) = showRecipe $ argify xs
   where
-    showRecipe (x:xs) = do
+    showRecipe (x:xxs) = do
         r <- infoRecipes sess opts x
         -- TODO This needs to check for JSON output selection...
         when (isJust r) $ putStrLn $ C8.unpack $ fromJust r ^. responseBody
-        showRecipe xs
+        showRecipe xxs
     showRecipe [] = putStrLn ""
 
 -- | Process the recipes save command
 -- Save a copy of the recipe to a TOML file using <recipe name>.toml
 recipesCommand sess opts ("save":xs) = saveRecipe $ argify xs
   where
-    saveRecipe (x:xs) = do
+    saveRecipe (x:xxs) = do
         r <- infoRecipes sess opts x
         -- TODO This needs to check for JSON output selection and save it as a .json file instead
         when (isJust r) $ writeFile (tomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
-        showRecipe xs
-    showRecipe [] = putStrLn ""         -- How to do a 'pass' here?
+        saveRecipe xxs
+    saveRecipe [] = putStrLn ""         -- How to do a 'pass' here?
 
 -- | Process the recipe depsolve command
 -- Print the list of package versions needed for the recipe list
@@ -105,36 +105,37 @@ recipesCommand sess opts ("depsolve":xs) = do
 -- Create a new recipe on the server, or overwrite an existing one, with a TOML recipe file
 recipesCommand sess opts ("push":xs) = pushRecipe $ argify xs
   where
-    pushRecipe (x:xs) = do
+    pushRecipe (x:xxs) = do
         let name = x
         unlessM (doesFileExist name) $ do
             putStrLn $ printf "ERROR: Missing file %s" name
             exitFailure
         toml <- readFile name
         newRecipes sess opts toml
-        pushRecipe xs
+        pushRecipe xxs
     pushRecipe [] = putStrLn ""         -- How to do a 'pass' here?
-recipesCommand _    _    (x:xs) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
-recipesCommand _    _    _      = putStrLn "ERROR: Missing recipes command"
+recipesCommand _    _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
+recipesCommand _    _    _     = putStrLn "ERROR: Missing recipes command"
 
 -- | Process the recipes freeze show command
 -- Show the frozen recipe in TOML format
+recipesFreeze :: Session -> CliOptions -> [String] -> IO ()
 recipesFreeze sess opts ("show":xs) = showFrozenRecipe $ argify xs
   where
-    showFrozenRecipe (x:xs) = do
+    showFrozenRecipe (x:xxs) = do
         r <- freezeRecipeToml sess opts x
         when (isJust r) $ putStrLn $ C8.unpack $ fromJust r ^. responseBody
-        showFrozenRecipe xs
+        showFrozenRecipe xxs
     showFrozenRecipe [] = putStrLn ""
 
 -- | Process the recipes freeze show command
 -- Save the frozen recipe in TOML format, as <recipe name>.frozen.toml
 recipesFreeze sess opts ("save":xs) = saveFrozenRecipe $ argify xs
   where
-    saveFrozenRecipe (x:xs) = do
+    saveFrozenRecipe (x:xxs) = do
         r <- freezeRecipeToml sess opts x
         when (isJust r) $ writeFile (frozenTomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
-        saveFrozenRecipe xs
+        saveFrozenRecipe xxs
     saveFrozenRecipe [] = putStrLn ""         -- How to do a 'pass' here?
 
 -- | Process the recipes freeze
@@ -149,18 +150,18 @@ recipesFreeze sess opts xs = do
 -- | Process the modules list command
 -- Print a list of the available modules
 modulesCommand :: Session -> CliOptions -> [String] -> IO ()
-modulesCommand sess opts ("list":xs)    = do
+modulesCommand sess opts ("list":_)    = do
     r <- listModules sess opts
     when (isJust r) $ do
         j <- asValue $ fromJust r
         putStrLn $ prettyJson $ j ^. responseBody
-modulesCommand _    _    (x:xs) = putStrLn $ printf "ERROR: Unknown modules command - %s" x
-modulesCommand _    _    _      = putStrLn "ERROR: Missing modules command"
+modulesCommand _    _    (x:_) = putStrLn $ printf "ERROR: Unknown modules command - %s" x
+modulesCommand _    _    _     = putStrLn "ERROR: Missing modules command"
 
 -- | Process the projects list command
 -- Print a list of the available projects
 projectsCommand :: Session -> CliOptions -> [String] -> IO ()
-projectsCommand sess opts ("list":xs)    = do
+projectsCommand sess opts ("list":_)    = do
     r <- listProjects sess opts
     when (isJust r) $ do
         j <- asValue $ fromJust r
@@ -170,8 +171,8 @@ projectsCommand sess opts ("info":xs) = do
     when (isJust r) $ do
         j <- asValue $ fromJust r
         putStrLn $ prettyJson $ j ^. responseBody
-projectsCommand _    _    (x:xs) = putStrLn $ printf "ERROR: Unknown projects command - %s" x
-projectsCommand _    _    _      = putStrLn "ERROR: Missing projects command"
+projectsCommand _    _    (x:_) = putStrLn $ printf "ERROR: Unknown projects command - %s" x
+projectsCommand _    _    _     = putStrLn "ERROR: Missing projects command"
 
 -- Execute a command and print the results
 parseCommand :: Session -> CliOptions -> [String] -> IO ()
@@ -179,7 +180,7 @@ parseCommand sess opts ("recipes":"freeze":xs) = recipesFreeze sess opts xs
 parseCommand sess opts ("recipes":xs)          = recipesCommand sess opts xs
 parseCommand sess opts ("modules":xs)          = modulesCommand sess opts xs
 parseCommand sess opts ("projects":xs)         = projectsCommand sess opts xs
-parseCommand sess opts ("help":xs)             = helpCommand xs
+parseCommand _    _    ("help":xs)             = helpCommand xs
 parseCommand _    _    _                       = putStrLn "Unknown Command"
 
 
