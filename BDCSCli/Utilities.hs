@@ -17,22 +17,16 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module BDCSCli.Utilities(argify,
-                         join,
                          maybeIO)
   where
 
 import qualified Control.Exception as E
 import Control.Monad (liftM)
-import Data.List (intersperse)
 import Data.List.Split (splitOn)
 
 -- | Turn exceptions from an action into Nothing
 maybeIO :: IO a -> IO (Maybe a)
 maybeIO act = E.handle (\(_::E.SomeException) -> (return Nothing)) (Just `liftM` act)
-
--- | Join a list of strings with a delimiter.
-join :: [a] -> [[a]] -> [a]
-join delim xs = concat (intersperse delim xs)
 
 -- | Take a list of possiby comma, or comma-space, separated options and turn it into a list of options
 argify :: Foldable t => t [Char] -> [[Char]]

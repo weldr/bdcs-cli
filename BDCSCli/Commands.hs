@@ -26,6 +26,7 @@ import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.Aeson.Lens (_String, key, values)
 import qualified Data.ByteString.Lazy.Char8 as C8
+import Data.List (intercalate)
 import Data.Maybe (isJust, fromJust)
 import qualified Data.Text as T
 import Network.Wreq
@@ -36,7 +37,7 @@ import System.Exit(exitFailure)
 
 import BDCSCli.API.V0
 import BDCSCli.Cmdline(CliOptions(..), helpCommand)
-import BDCSCli.Utilities(argify, join)
+import BDCSCli.Utilities(argify)
 
 -- | Return the TOML filename, ending with .toml
 tomlFileName :: String -> FilePath
@@ -53,7 +54,7 @@ prettyJson jsonValue = C8.unpack $ encodePretty jsonValue
 -- | Extract the list of recipes from the server Response Value
 -- a, b, c, ...
 humanRecipesList :: Response Value -> String
-humanRecipesList jsonValue = join ", " $ map T.unpack recipes
+humanRecipesList jsonValue = intercalate ", " $ map T.unpack recipes
   where recipes = jsonValue ^.. responseBody . key "recipes" . values . _String
 
 -- | Process the recipes list command
@@ -92,14 +93,14 @@ recipesCommand sess opts ("save":xs) = saveRecipe $ argify xs
 -- | Process the recipe depsolve command
 -- Print the list of package versions needed for the recipe list
 recipesCommand sess opts ("depsolve":xs) = do
-    r <- depsolveRecipes sess opts (join "," xs)
+    r <- depsolveRecipes sess opts (intercalate "," xs)
     when (isJust r) $ do
         j <- asValue $ fromJust r
         if optJsonOutput opts
             then putStrLn $ prettyJson $ j ^. responseBody
             else do
                 let deps = decodeDepsolve $ fromJust r
-                when (isJust deps) $ putStrLn $ join "\n\n" $ map (join "\n") $ recipesDepsList $ fromJust deps
+                when (isJust deps) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesDepsList $ fromJust deps
 
 -- | Process the recipes push command
 -- Create a new recipe on the server, or overwrite an existing one, with a TOML recipe file
@@ -141,10 +142,10 @@ recipesFreeze sess opts ("save":xs) = saveFrozenRecipe $ argify xs
 -- | Process the recipes freeze
 -- Display the recipes' frozen module and packages list in human readable format
 recipesFreeze sess opts xs = do
-    r <- freezeRecipes sess opts (join "," xs)
+    r <- freezeRecipes sess opts (intercalate "," xs)
     when (isJust r) $ do
         let recipes = decodeFreeze $ fromJust r
-        when (isJust recipes) $ putStrLn $ join "\n\n" $ map (join "\n") $ recipesFrozenList $ fromJust recipes
+        when (isJust recipes) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesFrozenList $ fromJust recipes
 
 
 -- | Process the modules list command
@@ -167,7 +168,7 @@ projectsCommand sess opts ("list":_)    = do
         j <- asValue $ fromJust r
         putStrLn $ prettyJson $ j ^. responseBody
 projectsCommand sess opts ("info":xs) = do
-    r <- infoProjects sess opts (join "," xs)
+    r <- infoProjects sess opts (intercalate "," xs)
     when (isJust r) $ do
         j <- asValue $ fromJust r
         putStrLn $ prettyJson $ j ^. responseBody
