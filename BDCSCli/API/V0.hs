@@ -29,7 +29,8 @@ module BDCSCli.API.V0(listRecipes,
                       decodeDepsolve,
                       decodeFreeze,
                       recipesDepsList,
-                      recipesFrozenList)
+                      recipesFrozenList,
+                      getDepNEVRAList)
   where
 
 import Control.Lens ((^.))
@@ -253,6 +254,9 @@ getDepRecipes DependencyJSON{..} = djRecipes
 getFrozenRecipes :: FreezeJSON -> [Recipe]
 getFrozenRecipes FreezeJSON{..} = fjRecipes
 
+-- | Get the recipes' dependencies as a list of PackageNEVRA Strings
+getDepNEVRAList :: DependencyJSON -> [String]
+getDepNEVRAList deps = map packageNEVRA $ concatMap getDependencies $ getDepRecipes deps
 
 -- | Convert the server response into data structures
 decodeDepsolve :: Response C8.ByteString -> Maybe DependencyJSON

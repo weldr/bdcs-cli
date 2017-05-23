@@ -32,6 +32,8 @@ data CliOptions = CliOptions
     , optJsonOutput  :: Bool
     , optUrl         :: String
     , optApi         :: String
+    , optMDDB        :: String
+    , optRepo        :: String
     } deriving Show
 
 defaultOptions :: CliOptions
@@ -41,6 +43,8 @@ defaultOptions    = CliOptions
     , optJsonOutput  = False
     , optUrl         = "http://localhost:4000/"
     , optApi         = "0"
+    , optMDDB        = "/var/tmp/mddb/metadata.db"
+    , optRepo        = "/var/tmp/repo/"
     }
 
 cliOptions :: [OptDescr (CliOptions -> CliOptions)]
@@ -60,6 +64,12 @@ cliOptions =
     , Option ['a']     ["api"]
         (ReqArg (\api opts -> opts { optApi = api }) "API")
         "URL to use for the API requests"
+    , Option ['m']     ["mddb"]
+        (ReqArg (\mddb opts -> opts { optMDDB = mddb }) "MDDB")
+        "Path to metadata.db, used by compose tar command"
+    , Option ['r']     ["repo"]
+        (ReqArg (\repo opts -> opts { optRepo = repo }) "REPO")
+        "Path to BDCS Repo, used by compose tar command"
     ]
 
 cliHeader :: String
@@ -74,6 +84,7 @@ parseOpts argv =
 
 helpText :: String
 helpText = "\
+\  compose tar <recipe>             Depsolve Recipe and compose a tar file using export from bdcs\n\
 \  recipes list                     List the names of the available recipes.\n\
 \          show <recipe,...>        Display the recipe in TOML format.\n\
 \          save <recipe,...>        Save the recipe to a file, <recipe-name>.toml\n\

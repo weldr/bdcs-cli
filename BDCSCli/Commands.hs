@@ -21,7 +21,7 @@ module BDCSCli.Commands(parseCommand)
 
 import Control.Conditional (unlessM)
 import Control.Lens ((^..), (^.))
-import Control.Monad (when)
+import Control.Monad(when, forM_)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.Aeson.Lens (_String, key, values)
@@ -32,8 +32,11 @@ import qualified Data.Text as T
 import Network.Wreq
 import Network.Wreq.Session as S
 import Text.Printf(printf)
+import System.Process(rawSystem)
 import System.Directory(doesFileExist)
 import System.Exit(exitFailure)
+import System.IO(hClose,hPutStr)
+import System.IO.Temp(withSystemTempFile)
 
 import BDCSCli.API.V0
 import BDCSCli.Cmdline(CliOptions(..), helpCommand)
@@ -47,6 +50,10 @@ tomlFileName = printf "%s.toml"
 frozenTomlFileName :: String -> FilePath
 frozenTomlFileName = tomlFileName . printf "%s.frozen"
 
+-- | Return the tar filename, ending with .tar
+tarFileName :: String -> FilePath
+tarFileName = printf "%s.tar"
+
 -- | Convert the Value into a pretty JSON string for printing.
 prettyJson :: Value -> String
 prettyJson jsonValue = C8.unpack $ encodePretty jsonValue
@@ -56,6 +63,34 @@ prettyJson jsonValue = C8.unpack $ encodePretty jsonValue
 humanRecipesList :: Response Value -> String
 humanRecipesList jsonValue = intercalate ", " $ map T.unpack recipes
   where recipes = jsonValue ^.. responseBody . key "recipes" . values . _String
+
+-- | Process the compose types command
+-- Prints a list of the supported compose types
+composeCommand :: Session -> CliOptions -> [String] -> IO ()
+composeCommand _ _ ("types":_) =
+    -- API has a list of compose types, but we are not currently using that
+    putStrLn "tar"
+
+composeCommand _    _    ("tar":[])       = putStrLn "ERROR: Missing recipe name"
+composeCommand sess opts ("tar":recipe:_) = do
+    r <- depsolveRecipes sess opts recipe
+    when (isJust r) $ do
+        let deps = decodeDepsolve $ fromJust r
+--        when (isJust deps) $ composeTar opts $ fromJust deps
+        forM_ deps composeTar
+  where
+    composeTar deps = withSystemTempFile "bdcs-deps-" $ \tmpFile hFile -> do
+        -- write deps to tmpFile
+        hPutStr hFile $ intercalate "\n" $ getDepNEVRAList deps
+        hClose hFile
+        let tarFile = tarFileName recipe
+        let mddbPath = optMDDB opts
+        let repoPath = optRepo opts
+        printf "Creating tar of %s, saving to %s\n" recipe tarFile
+        rawSystem "export" [mddbPath, repoPath, tarFile, tmpFile]
+
+composeCommand _    _    _      = putStrLn "ERROR: Unknown compose type"
+
 
 -- | Process the recipes list command
 -- Prints a JSON or human reable list of available recipes
@@ -177,6 +212,7 @@ projectsCommand _    _    _     = putStrLn "ERROR: Missing projects command"
 
 -- Execute a command and print the results
 parseCommand :: Session -> CliOptions -> [String] -> IO ()
+parseCommand sess opts ("compose":xs)          = composeCommand sess opts xs
 parseCommand sess opts ("recipes":"freeze":xs) = recipesFreeze sess opts xs
 parseCommand sess opts ("recipes":xs)          = recipesCommand sess opts xs
 parseCommand sess opts ("modules":xs)          = modulesCommand sess opts xs
