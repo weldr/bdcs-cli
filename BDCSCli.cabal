@@ -40,9 +40,12 @@ library
 executable bdcs-cli
   main-is:              bdcs-cli.hs
   hs-source-dirs:       tools
+                        dist/build/autogen
   build-depends:        base,
+                        gitrev,
                         wreq,
                         BDCSCli
+  other-modules:        Paths_BDCSCli
   default-language:     Haskell2010
 
 test-suite spec

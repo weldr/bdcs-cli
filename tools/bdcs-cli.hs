@@ -15,10 +15,14 @@
 -- You should have received a copy of the GNU General Public License
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 import Control.Monad (when)
+import Data.Version (showVersion)
+import Development.GitRev
 import Network.Wreq.Session as S
 
+import Paths_BDCSCli (version)
 import BDCSCli.Cmdline(CliOptions(..), parseArgs)
 import BDCSCli.Commands(parseCommand)
 
@@ -32,6 +36,12 @@ main = S.withSession $ \sess -> do
     r <- parseArgs
     let opts = fst r
     let commands = snd r
+    when (optShowVersion opts) $ do
+        let git_version = $(gitDescribe)
+        if git_version == "UNKNOWN" then
+            putStrLn ("bdcs-cli v" ++ showVersion version)
+        else
+            putStrLn ("bdcs-cli " ++ git_version)
     when (optVerbose opts) $ do
         print opts
         print commands
