@@ -18,18 +18,19 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 import Control.Monad (when)
+import Control.Monad.Reader(runReaderT)
 import Data.Version (showVersion)
 import Development.GitRev
 import Network.Wreq.Session as S
 
 import Paths_BDCSCli (version)
 import BDCSCli.Cmdline(CliOptions(..), parseArgs)
+import BDCSCli.CommandCtx(CommandCtx(..))
 import BDCSCli.Commands(parseCommand)
 
 -- | Print the API URL selection (or the default)
 printUrl :: CliOptions -> IO ()
 printUrl CliOptions{..} = putStrLn optUrl
-
 
 main :: IO ()
 main = S.withSession $ \sess -> do
@@ -46,4 +47,6 @@ main = S.withSession $ \sess -> do
         print opts
         print commands
         printUrl opts
-    parseCommand sess opts commands
+
+    let ctx = CommandCtx { ctxSession = sess, ctxOptions = opts }
+    runReaderT (parseCommand commands) ctx

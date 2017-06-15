@@ -30,10 +30,12 @@ module BDCSCli.API.V0(listRecipes,
                       decodeFreeze,
                       recipesDepsList,
                       recipesFrozenList,
-                      getDepNEVRAList)
+                      getDepNEVRAList,
+                      DependencyJSON)
   where
 
 import Control.Lens ((^.))
+import Control.Monad.Reader(ReaderT, ask)
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
@@ -42,44 +44,62 @@ import Network.Wreq.Session(Session)
 import Text.Printf(printf)
 
 import BDCSCli.Cmdline(CliOptions(..))
+import BDCSCli.CommandCtx(CommandCtx(..))
 import BDCSCli.URL(apiUrl, getUrl, postUrl)
 
 -- | Request the list of recipes from the API server
-listRecipes :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))
-listRecipes sess opts = getUrl sess $ apiUrl opts "recipes/list"
+listRecipes :: ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+listRecipes = do
+    opts <- ctxOptions <$> ask
+    getUrl $ apiUrl opts "recipes/list"
 
 -- | Request the TOML copy of the Recipe from the API server
-infoRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-infoRecipes sess opts recipe = getUrl sess $ apiUrl opts "recipes/info/" ++ recipe ++ "?format=toml"
+infoRecipes :: String -> ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+infoRecipes recipe = do
+    opts <- ctxOptions <$> ask
+    getUrl $ apiUrl opts "recipes/info/" ++ recipe ++ "?format=toml"
 
 -- | Request the dependecies for the recipe from the APO server
-depsolveRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-depsolveRecipes sess opts recipes = getUrl sess $ apiUrl opts "recipes/depsolve/" ++ recipes
+depsolveRecipes :: String -> ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+depsolveRecipes recipes = do
+    opts <- ctxOptions <$> ask
+    getUrl $ apiUrl opts "recipes/depsolve/" ++ recipes
 
 -- | Request the frozen recipe from the API server in TOML format
-freezeRecipeToml :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-freezeRecipeToml sess opts recipe = getUrl sess $ apiUrl opts "recipes/freeze/" ++ recipe ++ "?format=toml"
+freezeRecipeToml :: String -> ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+freezeRecipeToml recipe = do
+    opts <- ctxOptions <$> ask
+    getUrl $ apiUrl opts "recipes/freeze/" ++ recipe ++ "?format=toml"
 
 -- | Request the frozen recipe from the API server in JSON format
-freezeRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-freezeRecipes sess opts recipes = getUrl sess $ apiUrl opts "recipes/freeze/" ++ recipes
+freezeRecipes :: String -> ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+freezeRecipes recipes = do
+    opts <- ctxOptions <$> ask
+    getUrl $ apiUrl opts "recipes/freeze/" ++ recipes
 
-{-# ANN newRecipes ("HLint: ignore Eta reduce"::String) #-}
 -- | POST a new TOML recipe to the API server
-newRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-newRecipes sess opts bodyStr = postUrl sess (apiUrl opts "recipes/new") bodyStr
+newRecipes :: String -> ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+newRecipes bodyStr = do
+    opts <- ctxOptions <$> ask
+    postUrl (apiUrl opts "recipes/new") bodyStr
 
 -- | Request a list of the available modules from the API server
-listModules :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))
-listModules sess opts = getUrl sess $ apiUrl opts "modules/list"
+listModules :: ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+listModules = do
+    opts <- ctxOptions <$> ask
+    getUrl $ apiUrl opts "modules/list"
 
 -- | Request a list of the available projects from the API server
-listProjects :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))
-listProjects sess opts = getUrl sess $ apiUrl opts "projects/list"
+listProjects :: ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+listProjects = do
+    opts <- ctxOptions <$> ask
+    getUrl $ apiUrl opts "projects/list"
 
 -- | Request detailed info for a list of projects
-infoProjects :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-infoProjects sess opts projects = getUrl sess $ apiUrl opts "projects/info/" ++ projects
+infoProjects :: String -> ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+infoProjects projects = do
+    opts <- ctxOptions <$> ask
+    getUrl $ apiUrl opts "projects/info/" ++ projects
 
 
 --
@@ -291,5 +311,3 @@ recipesFrozenList recipes = map recipeDetails $ getFrozenRecipes recipes
     recipeDetails recipe = [recipeNameVersion recipe] ++ moduleDetails recipe ++ packageDetails recipe
     moduleDetails recipe = map (\m -> "    " ++ moduleNameVersion m) $ getModules recipe
     packageDetails recipe = map (\p -> "    " ++ moduleNameVersion p) $ getPackages recipe
-
-

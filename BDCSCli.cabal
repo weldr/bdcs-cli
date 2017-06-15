@@ -18,6 +18,7 @@ cabal-version:          >=1.10
 library
   exposed-modules:      BDCSCli.API.V0
                         BDCSCli.Cmdline
+                        BDCSCli.CommandCtx
                         BDCSCli.Commands
                         BDCSCli.URL
                         BDCSCli.Utilities
@@ -29,6 +30,7 @@ library
                         directory,
                         lens,
                         lens-aeson,
+                        mtl,
                         process,
                         split,
                         temporary,
@@ -45,6 +47,7 @@ executable bdcs-cli
                         dist/build/autogen
   build-depends:        base,
                         gitrev,
+                        mtl,
                         wreq,
                         BDCSCli
   other-modules:        Paths_BDCSCli

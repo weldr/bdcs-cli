@@ -23,12 +23,15 @@ module BDCSCli.URL(apiUrl,
   where
 
 import Control.Lens ((&), (.~))
+import Control.Monad.IO.Class(liftIO)
+import Control.Monad.Reader(ReaderT, ask)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
 import Network.Wreq.Session as S
 import Network.Wreq
 
 import BDCSCli.Cmdline(CliOptions(..))
+import BDCSCli.CommandCtx(CommandCtx(..))
 import BDCSCli.Utilities(maybeIO)
 
 -- | Construct an API URL based on cmdline options or defaults.
@@ -36,14 +39,15 @@ apiUrl :: CliOptions -> String -> String
 apiUrl CliOptions{..} route = optUrl ++ "api/v" ++ optApi ++ "/" ++ route
 
 -- | Fetch data from a URL and ignore errors by returning Nothing, or a Lazy ByteString
-getUrl :: Session -> String -> IO (Maybe (Response BSL.ByteString))
-getUrl sess url = maybeIO (S.get sess url)
+getUrl :: String -> ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+getUrl url = do
+    sess <- ctxSession <$> ask
+    liftIO $ maybeIO (S.get sess url)
 
 -- | Post a String to a URL and return the Response from the server, or Nothing
-postUrl :: Session -> String -> String -> IO (Maybe (Response BSL.ByteString))
-postUrl sess url bodyStr = do
+postUrl :: String -> String -> ReaderT CommandCtx IO (Maybe (Response BSL.ByteString))
+postUrl url bodyStr = do
     let opts = defaults & header "Content-Type" .~ ["text/x-toml"]
     let bodyBytes = C8.pack bodyStr
-    maybeIO (S.postWith opts sess url bodyBytes)
-
-
+    sess <- ctxSession <$> ask
+    liftIO $ maybeIO (S.postWith opts sess url bodyBytes)
