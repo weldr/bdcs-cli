@@ -19,6 +19,7 @@ library
   exposed-modules:      BDCSCli.API.V0
                         BDCSCli.Cmdline
                         BDCSCli.Commands
+                        BDCSCli.CommandCtx
                         BDCSCli.URL
                         BDCSCli.Utilities
   build-depends:        aeson,

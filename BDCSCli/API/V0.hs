@@ -42,44 +42,45 @@ import Network.Wreq.Session(Session)
 import Text.Printf(printf)
 
 import BDCSCli.Cmdline(CliOptions(..))
+import BDCSCli.CommandCtx(CommandCtx(..))
 import BDCSCli.URL(apiUrl, getUrl, postUrl)
 
 -- | Request the list of recipes from the API server
-listRecipes :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))
-listRecipes sess opts = getUrl sess $ apiUrl opts "recipes/list"
+listRecipes :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
+listRecipes CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "recipes/list"
 
 -- | Request the TOML copy of the Recipe from the API server
-infoRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-infoRecipes sess opts recipe = getUrl sess $ apiUrl opts "recipes/info/" ++ recipe ++ "?format=toml"
+infoRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+infoRecipes CommandCtx{..} recipe = getUrl ctxSession $ apiUrl ctxOptions "recipes/info/" ++ recipe ++ "?format=toml"
 
 -- | Request the dependecies for the recipe from the APO server
-depsolveRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-depsolveRecipes sess opts recipes = getUrl sess $ apiUrl opts "recipes/depsolve/" ++ recipes
+depsolveRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+depsolveRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "recipes/depsolve/" ++ recipes
 
 -- | Request the frozen recipe from the API server in TOML format
-freezeRecipeToml :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-freezeRecipeToml sess opts recipe = getUrl sess $ apiUrl opts "recipes/freeze/" ++ recipe ++ "?format=toml"
+freezeRecipeToml :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+freezeRecipeToml CommandCtx{..} recipe = getUrl ctxSession $ apiUrl ctxOptions "recipes/freeze/" ++ recipe ++ "?format=toml"
 
 -- | Request the frozen recipe from the API server in JSON format
-freezeRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-freezeRecipes sess opts recipes = getUrl sess $ apiUrl opts "recipes/freeze/" ++ recipes
+freezeRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+freezeRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "recipes/freeze/" ++ recipes
 
 {-# ANN newRecipes ("HLint: ignore Eta reduce"::String) #-}
 -- | POST a new TOML recipe to the API server
-newRecipes :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-newRecipes sess opts bodyStr = postUrl sess (apiUrl opts "recipes/new") bodyStr
+newRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+newRecipes CommandCtx{..} bodyStr = postUrl ctxSession (apiUrl ctxOptions "recipes/new") bodyStr
 
 -- | Request a list of the available modules from the API server
-listModules :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))
-listModules sess opts = getUrl sess $ apiUrl opts "modules/list"
+listModules :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
+listModules CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "modules/list"
 
 -- | Request a list of the available projects from the API server
-listProjects :: Session -> CliOptions -> IO (Maybe (Response BSL.ByteString))
-listProjects sess opts = getUrl sess $ apiUrl opts "projects/list"
+listProjects :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
+listProjects CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "projects/list"
 
 -- | Request detailed info for a list of projects
-infoProjects :: Session -> CliOptions -> String -> IO (Maybe (Response BSL.ByteString))
-infoProjects sess opts projects = getUrl sess $ apiUrl opts "projects/info/" ++ projects
+infoProjects :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+infoProjects CommandCtx{..} projects = getUrl ctxSession $ apiUrl ctxOptions "projects/info/" ++ projects
 
 
 --
@@ -291,5 +292,3 @@ recipesFrozenList recipes = map recipeDetails $ getFrozenRecipes recipes
     recipeDetails recipe = [recipeNameVersion recipe] ++ moduleDetails recipe ++ packageDetails recipe
     moduleDetails recipe = map (\m -> "    " ++ moduleNameVersion m) $ getModules recipe
     packageDetails recipe = map (\p -> "    " ++ moduleNameVersion p) $ getPackages recipe
-
-
