@@ -22,6 +22,8 @@ module BDCSCli.Commands(parseCommand)
 import Control.Conditional (unlessM)
 import Control.Lens ((^..), (^.))
 import Control.Monad(when, forM_)
+import Control.Monad.IO.Class(liftIO)
+import Control.Monad.Reader(ReaderT, ask)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.Aeson.Lens (_String, key, values)
@@ -40,6 +42,7 @@ import System.IO.Temp(withSystemTempFile)
 
 import BDCSCli.API.V0
 import BDCSCli.Cmdline(CliOptions(..), helpCommand)
+import BDCSCli.CommandCtx(CommandCtx(..))
 import BDCSCli.Utilities(argify)
 
 -- | Return the TOML filename, ending with .toml
@@ -66,158 +69,163 @@ humanRecipesList jsonValue = intercalate ", " $ map T.unpack recipes
 
 -- | Process the compose types command
 -- Prints a list of the supported compose types
-composeCommand :: Session -> CliOptions -> [String] -> IO ()
-composeCommand _ _ ("types":_) =
+composeCommand :: [String] -> ReaderT CommandCtx IO ()
+composeCommand ("types":_) =
     -- API has a list of compose types, but we are not currently using that
-    putStrLn "tar"
+    liftIO $ putStrLn "tar"
 
-composeCommand _    _    ("tar":[])       = putStrLn "ERROR: Missing recipe name"
-composeCommand sess opts ("tar":recipe:_) = do
-    r <- depsolveRecipes sess opts recipe
+composeCommand ("tar":[])       = liftIO $ putStrLn "ERROR: Missing recipe name"
+composeCommand ("tar":recipe:_) = do
+    r <- depsolveRecipes recipe
     when (isJust r) $ do
         let deps = decodeDepsolve $ fromJust r
 --        when (isJust deps) $ composeTar opts $ fromJust deps
         forM_ deps composeTar
   where
-    composeTar deps = withSystemTempFile "bdcs-deps-" $ \tmpFile hFile -> do
-        -- write deps to tmpFile
-        hPutStr hFile $ intercalate "\n" $ getDepNEVRAList deps
-        hClose hFile
-        let tarFile = tarFileName recipe
-        let mddbPath = optMDDB opts
-        let repoPath = optRepo opts
-        printf "Creating tar of %s, saving to %s\n" recipe tarFile
-        rawSystem "export" [mddbPath, repoPath, tarFile, tmpFile]
+    composeTar :: DependencyJSON -> ReaderT CommandCtx IO ()
+    composeTar deps = do
+        opts <- ctxOptions <$> ask
+        liftIO $ withSystemTempFile "bdcs-deps-" $ \tmpFile hFile -> do
+            -- write deps to tmpFile
+            hPutStr hFile $ intercalate "\n" $ getDepNEVRAList deps
+            hClose hFile
+            let tarFile = tarFileName recipe
+            let mddbPath = optMDDB opts
+            let repoPath = optRepo opts
+            printf "Creating tar of %s, saving to %s\n" recipe tarFile
+            rawSystem "export" [mddbPath, repoPath, tarFile, tmpFile]
+            return ()
 
-composeCommand _    _    _      = putStrLn "ERROR: Unknown compose type"
+composeCommand _      = liftIO $ putStrLn "ERROR: Unknown compose type"
 
 
 -- | Process the recipes list command
 -- Prints a JSON or human reable list of available recipes
-recipesCommand :: Session -> CliOptions -> [String] -> IO ()
-recipesCommand sess opts ("list":_) = do
-    r <- listRecipes sess opts
+recipesCommand :: [String] -> ReaderT CommandCtx IO ()
+recipesCommand ("list":_) = do
+    r <- listRecipes
     when (isJust r) $ do
         j <- asValue $ fromJust r
+        opts <- ctxOptions <$> ask
         if optJsonOutput opts
-            then putStrLn $ prettyJson $ j ^. responseBody
-            else putStrLn $ "Recipes: " ++ humanRecipesList j
+            then liftIO $ putStrLn $ prettyJson $ j ^. responseBody
+            else liftIO $ putStrLn $ "Recipes: " ++ humanRecipesList j
 
 -- | Process the recipes show command
 -- Print the TOML recipe
-recipesCommand sess opts ("show":xs) = showRecipe $ argify xs
+recipesCommand ("show":xs) = showRecipe $ argify xs
   where
     showRecipe (x:xxs) = do
-        r <- infoRecipes sess opts x
+        r <- infoRecipes x
         -- TODO This needs to check for JSON output selection...
-        when (isJust r) $ putStrLn $ C8.unpack $ fromJust r ^. responseBody
+        when (isJust r) $ liftIO $ putStrLn $ C8.unpack $ fromJust r ^. responseBody
         showRecipe xxs
-    showRecipe [] = putStrLn ""
+    showRecipe [] = liftIO $ putStrLn ""
 
 -- | Process the recipes save command
 -- Save a copy of the recipe to a TOML file using <recipe name>.toml
-recipesCommand sess opts ("save":xs) = saveRecipe $ argify xs
+recipesCommand ("save":xs) = saveRecipe $ argify xs
   where
     saveRecipe (x:xxs) = do
-        r <- infoRecipes sess opts x
+        r <- infoRecipes x
         -- TODO This needs to check for JSON output selection and save it as a .json file instead
-        when (isJust r) $ writeFile (tomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
+        when (isJust r) $ liftIO $ writeFile (tomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
         saveRecipe xxs
-    saveRecipe [] = putStrLn ""         -- How to do a 'pass' here?
+    saveRecipe [] = liftIO $ putStrLn ""         -- How to do a 'pass' here?
 
 -- | Process the recipe depsolve command
 -- Print the list of package versions needed for the recipe list
-recipesCommand sess opts ("depsolve":xs) = do
-    r <- depsolveRecipes sess opts (intercalate "," xs)
+recipesCommand ("depsolve":xs) = do
+    r <- depsolveRecipes (intercalate "," xs)
     when (isJust r) $ do
         j <- asValue $ fromJust r
+        opts <- ctxOptions <$> ask
         if optJsonOutput opts
-            then putStrLn $ prettyJson $ j ^. responseBody
+            then liftIO $ putStrLn $ prettyJson $ j ^. responseBody
             else do
                 let deps = decodeDepsolve $ fromJust r
-                when (isJust deps) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesDepsList $ fromJust deps
+                when (isJust deps) $ liftIO $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesDepsList $ fromJust deps
 
 -- | Process the recipes push command
 -- Create a new recipe on the server, or overwrite an existing one, with a TOML recipe file
-recipesCommand sess opts ("push":xs) = pushRecipe $ argify xs
+recipesCommand ("push":xs) = pushRecipe $ argify xs
   where
+    pushRecipe :: [String] -> ReaderT CommandCtx IO ()
     pushRecipe (x:xxs) = do
         let name = x
-        unlessM (doesFileExist name) $ do
-            putStrLn $ printf "ERROR: Missing file %s" name
-            exitFailure
-        toml <- readFile name
-        newRecipes sess opts toml
+        unlessM (liftIO $ doesFileExist name) $ do
+            liftIO $ putStrLn $ printf "ERROR: Missing file %s" name
+            liftIO $ exitFailure
+        toml <- liftIO $ readFile name
+        newRecipes toml
         pushRecipe xxs
-    pushRecipe [] = putStrLn ""         -- How to do a 'pass' here?
-recipesCommand _    _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
-recipesCommand _    _    _     = putStrLn "ERROR: Missing recipes command"
+    pushRecipe [] = liftIO $ putStrLn ""         -- How to do a 'pass' here?
+recipesCommand (x:_) = liftIO $ putStrLn $ printf "ERROR: Unknown recipes command - %s" x
+recipesCommand _     = liftIO $ putStrLn "ERROR: Missing recipes command"
 
 -- | Process the recipes freeze show command
 -- Show the frozen recipe in TOML format
-recipesFreeze :: Session -> CliOptions -> [String] -> IO ()
-recipesFreeze sess opts ("show":xs) = showFrozenRecipe $ argify xs
+recipesFreeze :: [String] -> ReaderT CommandCtx IO ()
+recipesFreeze ("show":xs) = showFrozenRecipe $ argify xs
   where
     showFrozenRecipe (x:xxs) = do
-        r <- freezeRecipeToml sess opts x
-        when (isJust r) $ putStrLn $ C8.unpack $ fromJust r ^. responseBody
+        r <- freezeRecipeToml x
+        when (isJust r) $ liftIO $ putStrLn $ C8.unpack $ fromJust r ^. responseBody
         showFrozenRecipe xxs
-    showFrozenRecipe [] = putStrLn ""
+    showFrozenRecipe [] = liftIO $ putStrLn ""
 
 -- | Process the recipes freeze show command
 -- Save the frozen recipe in TOML format, as <recipe name>.frozen.toml
-recipesFreeze sess opts ("save":xs) = saveFrozenRecipe $ argify xs
+recipesFreeze ("save":xs) = saveFrozenRecipe $ argify xs
   where
     saveFrozenRecipe (x:xxs) = do
-        r <- freezeRecipeToml sess opts x
-        when (isJust r) $ writeFile (frozenTomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
+        r <- freezeRecipeToml x
+        when (isJust r) $ liftIO $ writeFile (frozenTomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
         saveFrozenRecipe xxs
-    saveFrozenRecipe [] = putStrLn ""         -- How to do a 'pass' here?
+    saveFrozenRecipe [] = liftIO $ putStrLn ""         -- How to do a 'pass' here?
 
 -- | Process the recipes freeze
 -- Display the recipes' frozen module and packages list in human readable format
-recipesFreeze sess opts xs = do
-    r <- freezeRecipes sess opts (intercalate "," xs)
+recipesFreeze xs = do
+    r <- freezeRecipes (intercalate "," xs)
     when (isJust r) $ do
         let recipes = decodeFreeze $ fromJust r
-        when (isJust recipes) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesFrozenList $ fromJust recipes
+        when (isJust recipes) $ liftIO $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesFrozenList $ fromJust recipes
 
 
 -- | Process the modules list command
 -- Print a list of the available modules
-modulesCommand :: Session -> CliOptions -> [String] -> IO ()
-modulesCommand sess opts ("list":_)    = do
-    r <- listModules sess opts
+modulesCommand :: [String] -> ReaderT CommandCtx IO ()
+modulesCommand ("list":_)    = do
+    r <- listModules
     when (isJust r) $ do
         j <- asValue $ fromJust r
-        putStrLn $ prettyJson $ j ^. responseBody
-modulesCommand _    _    (x:_) = putStrLn $ printf "ERROR: Unknown modules command - %s" x
-modulesCommand _    _    _     = putStrLn "ERROR: Missing modules command"
+        liftIO $ putStrLn $ prettyJson $ j ^. responseBody
+modulesCommand (x:_) = liftIO $ putStrLn $ printf "ERROR: Unknown modules command - %s" x
+modulesCommand _     = liftIO $ putStrLn "ERROR: Missing modules command"
 
 -- | Process the projects list command
 -- Print a list of the available projects
-projectsCommand :: Session -> CliOptions -> [String] -> IO ()
-projectsCommand sess opts ("list":_)    = do
-    r <- listProjects sess opts
+projectsCommand :: [String] -> ReaderT CommandCtx IO ()
+projectsCommand ("list":_)    = do
+    r <- listProjects
     when (isJust r) $ do
         j <- asValue $ fromJust r
-        putStrLn $ prettyJson $ j ^. responseBody
-projectsCommand sess opts ("info":xs) = do
-    r <- infoProjects sess opts (intercalate "," xs)
+        liftIO $ putStrLn $ prettyJson $ j ^. responseBody
+projectsCommand ("info":xs) = do
+    r <- infoProjects (intercalate "," xs)
     when (isJust r) $ do
         j <- asValue $ fromJust r
-        putStrLn $ prettyJson $ j ^. responseBody
-projectsCommand _    _    (x:_) = putStrLn $ printf "ERROR: Unknown projects command - %s" x
-projectsCommand _    _    _     = putStrLn "ERROR: Missing projects command"
+        liftIO $ putStrLn $ prettyJson $ j ^. responseBody
+projectsCommand (x:_) = liftIO $ putStrLn $ printf "ERROR: Unknown projects command - %s" x
+projectsCommand _     = liftIO $ putStrLn "ERROR: Missing projects command"
 
 -- Execute a command and print the results
-parseCommand :: Session -> CliOptions -> [String] -> IO ()
-parseCommand sess opts ("compose":xs)          = composeCommand sess opts xs
-parseCommand sess opts ("recipes":"freeze":xs) = recipesFreeze sess opts xs
-parseCommand sess opts ("recipes":xs)          = recipesCommand sess opts xs
-parseCommand sess opts ("modules":xs)          = modulesCommand sess opts xs
-parseCommand sess opts ("projects":xs)         = projectsCommand sess opts xs
-parseCommand _    _    ("help":xs)             = helpCommand xs
-parseCommand _    _    _                       = putStrLn "Unknown Command"
-
-
+parseCommand :: [String] -> ReaderT CommandCtx IO ()
+parseCommand ("compose":xs)          = composeCommand xs
+parseCommand ("recipes":"freeze":xs) = recipesFreeze xs
+parseCommand ("recipes":xs)          = recipesCommand xs
+parseCommand ("modules":xs)          = modulesCommand xs
+parseCommand ("projects":xs)         = projectsCommand xs
+parseCommand ("help":xs)             = liftIO $ helpCommand xs
+parseCommand _                       = liftIO $ putStrLn "Unknown Command"
