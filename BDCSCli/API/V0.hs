@@ -87,7 +87,7 @@ infoProjects CommandCtx{..} projects = getUrl ctxSession $ apiUrl ctxOptions "pr
 -- JSON Data types for parsing the BDCS API recipes/depsolve/ response
 --
 
-data DependencyJSON =
+newtype DependencyJSON =
     DependencyJSON { djRecipes  :: [RecipeDeps]
     } deriving Show
 
@@ -121,7 +121,7 @@ instance ToJSON RecipeDeps where
       , "dependencies" .= rdDependencies ]
 
 
-data FreezeJSON =
+newtype FreezeJSON =
     FreezeJSON { fjRecipes :: [Recipe]
     } deriving Show
 
@@ -276,7 +276,7 @@ dependenciesList recipeDeps = map (\p -> "    " ++ packageNEVRA p) $ getDependen
 recipesDepsList :: DependencyJSON -> [[String]]
 recipesDepsList deps = map recipeDetails $ getDepRecipes deps
   where
-    recipeDetails recipeDeps = [name recipeDeps] ++ dependenciesList recipeDeps
+    recipeDetails recipeDeps = name recipeDeps : dependenciesList recipeDeps
     name = recipeNameVersion . getDepRecipe
 
 -- | Convert the server response into data structures
