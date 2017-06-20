@@ -29,5 +29,5 @@ maybeIO :: IO a -> IO (Maybe a)
 maybeIO act = E.handle (\(_::E.SomeException) -> (return Nothing)) (Just `liftM` act)
 
 -- | Take a list of possiby comma, or comma-space, separated options and turn it into a list of options
-argify :: Foldable t => t [Char] -> [[Char]]
+argify :: Foldable t => t String -> [String]
 argify xs = filter (/= "") $ concatMap (splitOn ",") xs

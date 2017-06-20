@@ -72,7 +72,7 @@ composeCommand _ ("types":_) =
     -- API has a list of compose types, but we are not currently using that
     putStrLn "tar"
 
-composeCommand _   ("tar":[])       = putStrLn "ERROR: Missing recipe name"
+composeCommand _   ["tar"]          = putStrLn "ERROR: Missing recipe name"
 composeCommand ctx ("tar":recipe:_) = do
     r <- depsolveRecipes ctx recipe
     when (isJust r) $ do
