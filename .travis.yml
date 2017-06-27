@@ -15,9 +15,16 @@ script:
   - cabal build
   - cabal test --show-details=always
 
+  # tests for bdcs-cli binary
+  - ./tests/test_binary.sh
+
+  # collect binary coverage
+  - mkdir ./dist/hpc/vanilla/tix/bdcs-cli/
+  - mv bdcs-cli.tix ./dist/hpc/vanilla/tix/bdcs-cli/
+
 after_success:
   - cabal install hpc-coveralls
-  - ~/.cabal/bin/hpc-coveralls --display-report spec
+  - ~/.cabal/bin/hpc-coveralls --display-report spec bdcs-cli
 
 notifications:
   email:
