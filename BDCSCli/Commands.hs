@@ -219,4 +219,5 @@ parseCommand ctx ("recipes":xs)          = recipesCommand ctx xs
 parseCommand ctx ("modules":xs)          = modulesCommand ctx xs
 parseCommand ctx ("projects":xs)         = projectsCommand ctx xs
 parseCommand _   ("help":xs)             = helpCommand xs
+parseCommand _   []                      = helpCommand []
 parseCommand _   _                       = putStrLn "Unknown Command"
