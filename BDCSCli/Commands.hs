@@ -213,6 +213,7 @@ projectsCommand _    _     = putStrLn "ERROR: Missing projects command"
 
 -- Execute a command and print the results
 parseCommand :: CommandCtx -> [String] -> IO ()
+parseCommand (CommandCtx _ CliOptions {optShowVersion = True}) _ = return ()
 parseCommand ctx ("compose":xs)          = composeCommand ctx xs
 parseCommand ctx ("recipes":"freeze":xs) = recipesFreeze ctx xs
 parseCommand ctx ("recipes":xs)          = recipesCommand ctx xs
