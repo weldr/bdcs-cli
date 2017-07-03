@@ -5,7 +5,7 @@ set -x
 
 bdcscli="./dist/build/bdcs-cli/bdcs-cli"
 
-# When called without parameters returns Unknown Command
+# When called without parameters prints usage & help
 if [[ $($bdcscli 2>&1 | head -n 1) != "Usage: bdcs-cli [OPTIONS...] commands..." ]]; then
     exit 1
 fi
