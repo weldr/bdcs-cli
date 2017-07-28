@@ -30,13 +30,15 @@ module BDCSCli.API.V0(listRecipes,
                       decodeFreeze,
                       recipesDepsList,
                       recipesFrozenList,
-                      getDepNEVRAList)
+                      getDepNEVRAList,
+                      Recipe(..))
   where
 
 import Control.Lens ((^.))
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
+import Data.Maybe(fromMaybe)
 import Network.Wreq
 import Network.Wreq.Session(Session)
 import Text.Printf(printf)
@@ -137,7 +139,7 @@ instance ToJSON FreezeJSON where
 
 data Recipe =
     Recipe { rName              :: String
-           , rVersion           :: String
+           , rVersion           :: Maybe String
            , rDescription       :: String
            , rPackages          :: [RecipeModule]
            , rModules           :: [RecipeModule]
@@ -145,17 +147,17 @@ data Recipe =
 
 instance FromJSON Recipe where
   parseJSON = withObject "recipe" $ \o -> do
-      rName        <- o .: "name"
-      rVersion     <- o .: "version"
-      rDescription <- o .: "description"
-      rPackages    <- o .: "packages"
-      rModules     <- o .: "modules"
+      rName        <- o .:  "name"
+      rVersion     <- o .:? "version"
+      rDescription <- o .:  "description"
+      rPackages    <- o .:? "packages" .!= []
+      rModules     <- o .:? "modules" .!= []
       return Recipe{..}
 
 instance ToJSON Recipe where
   toJSON Recipe{..} = object [
         "name"        .= rName
-      , "version"     .= rVersion
+      , "version"     .= fromMaybe "" rVersion
       , "description" .= rDescription
       , "packages"    .= rPackages
       , "rModules"    .= rModules ]
@@ -210,7 +212,7 @@ instance ToJSON PackageNEVRA where
 
 -- | Name and Version of a Recipe as a String
 recipeNameVersion :: Recipe -> String
-recipeNameVersion Recipe{..} = printf "Recipe: %s v%s" rName rVersion
+recipeNameVersion Recipe{..} = printf "Recipe: %s v%s" rName (fromMaybe "" rVersion)
 
 -- | Description of a Recipe as a String
 recipeDescription :: Recipe -> String

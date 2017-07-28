@@ -20,6 +20,7 @@ library
                         BDCSCli.Cmdline
                         BDCSCli.Commands
                         BDCSCli.CommandCtx
+                        BDCSCli.Recipe
                         BDCSCli.URL
                         BDCSCli.Utilities
   build-depends:        aeson,
@@ -28,6 +29,7 @@ library
                         bytestring,
                         cond,
                         directory,
+                        htoml,
                         lens,
                         lens-aeson,
                         process,
