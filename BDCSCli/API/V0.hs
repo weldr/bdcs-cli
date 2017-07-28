@@ -31,7 +31,8 @@ module BDCSCli.API.V0(listRecipes,
                       recipesDepsList,
                       recipesFrozenList,
                       getDepNEVRAList,
-                      Recipe(..))
+                      Recipe(..),
+                      RecipeModule(..))
   where
 
 import Control.Lens ((^.))

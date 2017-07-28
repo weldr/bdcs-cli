@@ -15,17 +15,19 @@
 -- You should have received a copy of the GNU General Public License
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module BDCSCli.Recipe(parseRecipe)
   where
 
 import           Data.Aeson(toJSON, fromJSON)
 import           Data.Aeson.Types(Result(..))
+import           Data.Maybe(fromMaybe)
 import qualified Data.Text as T
+import           Text.Printf(printf)
 import           Text.Toml(parseTomlDoc)
 
-import BDCSCli.API.V0(Recipe)
-
+import           BDCSCli.API.V0(Recipe(..), RecipeModule(..))
 
 -- | Parse a TOML formatted string and return a Recipe
 parseRecipe :: T.Text -> Either String Recipe
@@ -37,3 +39,16 @@ parseRecipe xs =
             case (fromJSON json :: Result Recipe) of
                 Error err -> Left ("Converting from JSON to Recipe failed. " ++ show err)
                 Success r -> Right r
+
+-- | Convert a Recipe to a TOML string
+recipeTOML :: Recipe -> T.Text
+recipeTOML Recipe{..} = T.concat [nameText, versionText, descriptionText, modulesText, packagesText]
+  where
+    nameText = T.pack $ printf "name = \"%s\"\n" rName
+    versionText = T.pack $ printf "version = \"%s\"\n" $ fromMaybe "" rVersion
+    descriptionText = T.pack $ printf "description = \"%s\"\n\n" rDescription
+
+    moduleText :: T.Text -> RecipeModule -> T.Text
+    moduleText name RecipeModule{..} = T.pack $ printf "[[%s]]\nname = \"%s\"\nversion = \"%s\"\n\n" name rmName rmVersion
+    packagesText = T.concat $ map (moduleText "packages") rPackages
+    modulesText = T.concat $ map (moduleText "modules") rModules
