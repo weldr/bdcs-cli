@@ -29,6 +29,8 @@ library
                         bytestring,
                         cond,
                         directory,
+                        gi-gio,
+                        gi-ggit,
                         htoml,
                         lens,
                         lens-aeson,
