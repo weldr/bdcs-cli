@@ -141,6 +141,26 @@ writeCommit repo branch filename message content = do
     -- Create a new commit: repositoryCreateCommit
     Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit]
 
+-- | Read a commit and return a ByteString of the content
+-- TODO Return the commit message too
+readCommit :: Git.Repository -> T.Text -> T.Text -> Maybe T.Text -> IO BS.ByteString
+readCommit repo branch filename Nothing = do
+    let spec = T.pack $ printf "%s:%s" branch filename
+    readCommitSpec repo spec
+readCommit repo branch filename commit = do
+    let spec = T.pack $ printf "%s:%s" (fromJust $ commit) filename
+    readCommitSpec repo spec
+
+-- | Read a commit usinga revspec, return the ByteString content
+readCommitSpec :: Git.Repository -> T.Text -> IO BS.ByteString
+readCommitSpec repo spec = do
+    obj <- Git.repositoryRevparse repo spec
+    oid <- Git.objectGetId obj
+    -- XXX Handle errors
+    mblob <- Git.repositoryLookupBlob repo oid
+    let blob = fromJust mblob
+    Git.blobGetRawContent blob
+
 -- | Test out git functions
 doGitTests :: FilePath -> IO ()
 doGitTests path = do
