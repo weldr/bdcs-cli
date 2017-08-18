@@ -227,7 +227,7 @@ listCommitFiles repo commit = do
     sz <- Git.treeSize tree
     getFilenames tree sz
 
-deleteFile :: Git.Repository -> T.Text -> T.Text -> IO ()
+deleteFile :: Git.Repository -> T.Text -> T.Text -> IO Git.OId
 deleteFile repo branch filename = do
     mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
     -- XXX Handle errors
@@ -260,8 +260,66 @@ deleteFile repo branch filename = do
 
     -- Create a new commit: repositoryCreateCommit
     Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit]
-    return ()
 
+revertFile :: Git.Repository -> T.Text -> T.Text -> T.Text -> IO Git.OId
+revertFile repo branch filename commit = do
+    mcommit_id <- Git.oIdNewFromString commit
+    -- XXX Handle errors
+    let commit_id = fromJust mcommit_id
+    revertFileCommit repo branch filename commit_id
+
+revertFileCommit :: Git.Repository -> T.Text -> T.Text -> Git.OId -> IO Git.OId
+revertFileCommit repo branch filename commit_id = do
+    mcommit_obj <- Git.repositoryLookupCommit repo commit_id
+    -- XXX Handle errors
+    let commit_obj = fromJust mcommit_obj
+    mrevert_tree <- Git.commitGetTree commit_obj
+    -- XXX Handle errors
+    let revert_tree = fromJust mrevert_tree
+    mentry <- Git.treeGetByName revert_tree filename
+    -- XXX Handle errors
+    let entry = fromJust mentry
+-- XXX I think this is correct
+    mblob_id <- Git.treeEntryGetId entry
+    -- XXX Handle errors
+    let blob_id = fromJust mblob_id
+
+-- vvv This could be a function, it's used in multiple places
+    mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
+    -- XXX Handle errors
+    let branch_obj = fromJust mbranch
+    branch_id <- getBranchOIdFromObject repo branch_obj
+    -- get the parent commit for this branch: repositoryLookupCommit
+    mparent_commit <- Git.repositoryLookupCommit repo branch_id
+    -- XXX Handle errors
+    let parent_commit = fromJust mparent_commit
+-- ^^^ This could be a function, it's used in multiple places
+
+    -- Use treebuilder to modify the tree
+    mparent_tree <- Git.commitGetTree parent_commit
+    -- XXX Handle errors
+    let parent_tree = fromJust mparent_tree
+    builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree
+
+    Git.treeBuilderInsert builder filename blob_id Git.FileModeBlob
+    tree_id <- Git.treeBuilderWrite builder
+    mtree <- Git.repositoryLookupTree repo tree_id
+    -- XXX Handle errors
+    let tree = fromJust mtree
+
+    -- Create a signature
+    sig <- Git.signatureNewNow "bdcs-cli" "user-email"
+
+    let ref = Just $ T.pack $ printf "refs/heads/%s" branch
+    let encoding = Just "UTF-8"
+
+    mcommit <- Git.oIdToString commit_id
+    -- XXX Handle errors
+    let commit = fromJust mcommit
+    let message = T.pack $ printf "Recipe %s reverted to commit %s" filename commit
+
+    -- Create a new commit: repositoryCreateCommit
+    Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit]
 
 
 -- | Test out git functions
@@ -287,5 +345,12 @@ doGitTests path = do
 
     files <- listBranchFiles repo "master" Nothing
     print files
+
+    -- Revert the delete
+    revertFileCommit repo "master" "FRODO" commit_id
+
+    files <- listBranchFiles repo "master" Nothing
+    print files
+
 
     return ()
