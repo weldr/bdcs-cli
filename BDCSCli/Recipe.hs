@@ -27,6 +27,7 @@ import           Data.Aeson.Types(Result(..))
 import qualified Data.ByteString as BS
 import           Data.Maybe(fromJust, fromMaybe, isJust)
 import qualified Data.Text as T
+import           Data.Word(Word32)
 import           GI.Gio
 import qualified GI.Ggit as Git
 import           System.Directory(doesPathExist)
@@ -93,7 +94,7 @@ findOrCreateBranch repo branch = do
         head_ref <- Git.repositoryGetHead repo
         parent_obj <- Git.refLookup head_ref
         mbranch <- Git.repositoryCreateBranch repo branch parent_obj [Git.CreateFlagsNone]
-        -- TODO Handle errors
+        -- XXX Handle errors
         return $ fromJust mbranch
 
 -- | Convert a Branch object to an OId
@@ -116,19 +117,21 @@ writeCommit repo branch filename message content = do
 
     -- get the parent commit for this branch: repositoryLookupCommit
     mparent_commit <- Git.repositoryLookupCommit repo branch_id
-    -- TODO Handle errors
+    -- XXX Handle errors
     let parent_commit = fromJust mparent_commit
 
     -- create a blob for content: repositoryCreateBlobFromBuffer
     blob_id <- Git.repositoryCreateBlobFromBuffer repo content
 
     -- Use treebuilder to make a new entry for this filename and blob: repositoryCreateTreeBuilderFromTree
-    parent_tree <- Git.commitGetTree parent_commit
+    mparent_tree <- Git.commitGetTree parent_commit
+    -- XXX Handle errors
+    let parent_tree = fromJust mparent_tree
     builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree
     -- treeBuilderInsert, treeBuilderWrite
     Git.treeBuilderInsert builder filename blob_id Git.FileModeBlob
     tree_id <- Git.treeBuilderWrite builder
-    -- TODO Handle errors
+    -- XXX Handle errors
     mtree <- Git.repositoryLookupTree repo tree_id
     let tree = fromJust mtree
 
@@ -161,12 +164,128 @@ readCommitSpec repo spec = do
     let blob = fromJust mblob
     Git.blobGetRawContent blob
 
+-- | Get the filename for a Blob tree entry
+getFilename :: Git.Tree -> Word32 -> IO (Maybe T.Text)
+getFilename tree idx = do
+    mentry <- Git.treeGet tree idx
+    -- XXX Handle errors
+    let entry = fromJust mentry
+
+    -- Only allow Blob and BlobExecutable
+    isBlob <- isFileBlob entry
+    case isBlob of
+        False   -> return Nothing
+        True    -> do
+            mfilename <- Git.treeEntryGetName entry
+            -- XXX Handle errors
+            let name = fromJust mfilename
+            return $ Just name
+ where
+    isFileBlob entry = do
+        mode <- Git.treeEntryGetFileMode entry
+        case mode of
+            Git.FileModeBlob           -> return True
+            Git.FileModeBlobExecutable -> return True
+            _                          -> return False
+
+-- | Get a list of the Blob tree entry filenames
+getFilenames :: Git.Tree -> Word32 -> IO [T.Text]
+getFilenames tree idx = getFilenames' tree [] idx
+
+-- | Build the list of filenames from the tree entries
+getFilenames' :: Git.Tree -> [T.Text] -> Word32 -> IO [T.Text]
+getFilenames' _ filenames 0 = return filenames
+getFilenames' tree filenames idx = do
+    filename <- getFilename tree (idx-1)
+    case filename of
+        Just name -> getFilenames' tree (name:filenames) (idx-1)
+        Nothing   -> getFilenames' tree filenames (idx-1)
+
+-- | List the files on a branch
+listBranchFiles :: Git.Repository -> T.Text -> Maybe T.Text -> IO [T.Text]
+listBranchFiles repo branch Nothing = do
+    mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
+    -- XXX Handle errors
+    let branch_obj = fromJust mbranch
+    branch_id <- getBranchOIdFromObject repo branch_obj
+    -- get the parent commit for this branch: repositoryLookupCommit
+    mparent_commit <- Git.repositoryLookupCommit repo branch_id
+    -- XXX Handle errors
+    let parent_commit = fromJust mparent_commit
+    listCommitFiles repo parent_commit
+
+-- | List the files in a commit
+listCommitFiles :: Git.Repository -> Git.Commit -> IO [T.Text]
+listCommitFiles repo commit = do
+    mparent_tree_id <- Git.commitGetTreeId commit
+    let parent_tree_id = fromJust mparent_tree_id
+
+    mtree <- Git.repositoryLookupTree repo parent_tree_id
+    -- XXX Handle errors
+    let tree = fromJust mtree
+
+    sz <- Git.treeSize tree
+    getFilenames tree sz
+
+deleteFile :: Git.Repository -> T.Text -> T.Text -> IO ()
+deleteFile repo branch filename = do
+    mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
+    -- XXX Handle errors
+    let branch_obj = fromJust mbranch
+    branch_id <- getBranchOIdFromObject repo branch_obj
+    -- get the parent commit for this branch: repositoryLookupCommit
+    mparent_commit <- Git.repositoryLookupCommit repo branch_id
+    -- XXX Handle errors
+    let parent_commit = fromJust mparent_commit
+
+    -- Use treebuilder to modify the tree
+    mparent_tree <- Git.commitGetTree parent_commit
+    -- XXX Handle errors
+    let parent_tree = fromJust mparent_tree
+    builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree
+    -- treeBuilderInsert, treeBuilderWrite
+    Git.treeBuilderRemove builder filename
+    tree_id <- Git.treeBuilderWrite builder
+    -- XXX Handle errors
+    mtree <- Git.repositoryLookupTree repo tree_id
+    let tree = fromJust mtree
+
+    -- Create a signature
+    sig <- Git.signatureNewNow "bdcs-cli" "user-email"
+
+    let ref = Just $ T.pack $ printf "refs/heads/%s" branch
+    let encoding = Just "UTF-8"
+
+    let message = T.pack $ printf "Recipe %s deleted" filename
+
+    -- Create a new commit: repositoryCreateCommit
+    Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit]
+    return ()
+
+
+
 -- | Test out git functions
 doGitTests :: FilePath -> IO ()
 doGitTests path = do
     -- Move this elsewhere later, MUST be called first
     Git.init
     repo <- openOrCreateRepo path
-    commit_id <- writeCommit repo "master" "README" "A test commit\n\nWith some commentary." "Some Content"
---    print commit_id
+-- WORKS
+--    commit_id <- writeCommit repo "master" "README" "A test commit\n\nWith some commentary." "Some Content"
+--    commit_id <- writeCommit repo "master" "README" "A test commit 2\n\nWith some other commentary." "Some Content #2"
+--    commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some stuff to do." "Some Content"
+--    commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some commentary." "Some other Content"
+
+    files <- listBranchFiles repo "master" Nothing
+    print files
+
+    commit_id <- writeCommit repo "master" "FRODO" "A list of stuff to be accomplished\n\nFind a magic ring" "Some other Content"
+    files <- listBranchFiles repo "master" Nothing
+    print files
+
+    deleteFile repo "master" "FRODO"
+
+    files <- listBranchFiles repo "master" Nothing
+    print files
+
     return ()
