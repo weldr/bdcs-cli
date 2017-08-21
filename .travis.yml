@@ -8,6 +8,7 @@ cache:
     - ~/.cabal
 
 before_install:
+  - pip install s3cmd
   - wget https://haskell.org/platform/download/8.0.2/haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
   - tar -xzvf ./haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
   - sudo ./install-haskell-platform.sh
@@ -29,8 +30,13 @@ script:
 
 after_success:
   - ~/.cabal/bin/hpc-coveralls --display-report spec bdcs-cli
+  - |
+        if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
+            s3cmd sync --access_key="$ARTIFACTS_KEY" --secret_key="$ARTIFACTS_SECRET" \
+                        -v -P ./dist/build/bdcs-cli/bdcs-cli s3://weldr/bdcs-cli
+        fi
 
 notifications:
   email:
     on_failure: change
-    on_success: change
+    on_success: never
