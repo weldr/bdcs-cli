@@ -63,7 +63,7 @@ cliOptions =
         "URL to use for the API requests"
     , Option ['a']     ["api"]
         (ReqArg (\api opts -> opts { optApi = api }) "API")
-        "URL to use for the API requests"
+        "API version to use for the API requests"
     , Option ['m']     ["mddb"]
         (ReqArg (\mddb opts -> opts { optMDDB = mddb }) "MDDB")
         "Path to metadata.db, used by compose tar command"
