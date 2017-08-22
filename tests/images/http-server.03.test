@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -e
+
+
+# PROCEED to test if PHP works
+
+echo "<?php phpinfo(); ?>" | php >/dev/null
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: didn't find index.html for localhost"
+    exit 1
+else
+    echo "INFO: PHP works"
+fi

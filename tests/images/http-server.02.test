@@ -1,0 +1,27 @@
+#!/bin/bash
+
+### beakerlib example
+### currently blocked by issues discussed in
+## https://github.com/beakerlib/beakerlib/pull/11
+
+#. /usr/share/beakerlib/beakerlib.sh
+#rlJournalStart
+#
+#    rlPhaseStartSetup
+#        rlLogInfo "Setting up .."
+#        rlAssertEquals "Check if assert equals works" 1 1
+#
+#        rlRun "echo 'HELLO WORLD'" || rlDie "rlRun failed"
+#    rlPhaseEnd
+#
+#    rlPhaseStartTest ""
+#        GREP_SCORE=`curl http://localhost | grep "Testing 1234" | wc -l`
+#        rlAssert0 "Score should be 0" $GREP_SCORE
+#    rlPhaseEnd
+#
+#    rlPhaseStartCleanup
+#        rlLogInfo "Nothing to cleanup"
+#    rlPhaseEnd
+#
+#rlJournalEnd
+#rlJournalPrintText
