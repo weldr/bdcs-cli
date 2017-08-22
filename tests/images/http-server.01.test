@@ -1,0 +1,48 @@
+#!/bin/bash
+
+set -e
+
+useradd apache
+
+# configure mod_ssl certificates
+if [ -f /etc/pki/tls/private/localhost.key -o -f /etc/pki/tls/certs/localhost.crt ]; then
+   exit 0
+fi
+
+/usr/bin/openssl genrsa -rand /proc/apm:/proc/cpuinfo:/proc/dma:/proc/filesystems:/proc/interrupts:/proc/ioports:/proc/pci:/proc/rtc:/proc/uptime 2048 > /etc/pki/tls/private/localhost.key 2> /dev/null
+
+FQDN=localhost.localdomain
+
+cat << EOF | /usr/bin/openssl req -new -key /etc/pki/tls/private/localhost.key \
+         -x509 -sha256 -days 365 -set_serial $RANDOM -extensions v3_req \
+         -out /etc/pki/tls/certs/localhost.crt 2>/dev/null
+--
+SomeState
+SomeCity
+SomeOrganization
+SomeOrganizationalUnit
+${FQDN}
+root@${FQDN}
+EOF
+
+# finally run apache in the background
+/usr/sbin/apachectl
+
+
+# PROCEED to test the index.html page
+
+## test http://
+if [ `curl -q http://localhost | grep "Testing 123" | wc -l` -ne 1 ]; then
+    echo "ERROR: didn't find index.html for localhost"
+    exit 1
+else
+    echo "INFO: http:// works"
+fi
+
+## test https://
+if [ `curl -k -q https://localhost | grep "Testing 123" | wc -l` -ne 1 ]; then
+    echo "ERROR: didn't find secure index.html for localhost"
+    exit 1
+else
+    echo "INFO: https:// works"
+fi
