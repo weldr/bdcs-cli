@@ -21,17 +21,22 @@ module BDCSCli.Recipe(parseRecipe,
                       doGitTests)
   where
 
-import           Control.Conditional(ifM)
+import           Control.Conditional(ifM, when)
+import           Control.Monad(filterM)
+import           Control.Monad.Loops(allM)
 import           Data.Aeson(toJSON, fromJSON)
 import           Data.Aeson.Types(Result(..))
 import qualified Data.ByteString as BS
+import           Data.List(findIndices)
 import           Data.Maybe(fromJust, fromMaybe, isJust)
 import qualified Data.Text as T
 import           Data.Word(Word32)
 import           GI.Gio
 import qualified GI.Ggit as Git
+import qualified GI.GLib as GLib
 import           System.Directory(doesPathExist)
 import           Text.Printf(printf)
+import           Text.Read(readMaybe)
 import           Text.Toml(parseTomlDoc)
 
 import           BDCSCli.API.V0(Recipe(..), RecipeModule(..))
@@ -103,8 +108,11 @@ getBranchOIdFromObject :: Git.Repository -> Git.Branch -> IO Git.OId
 getBranchOIdFromObject repo branch_obj = do
     branch_name <- Git.branchGetName branch_obj
     let branch_ref = T.pack $ printf "refs/heads/%s" branch_name
-    ref <- Git.repositoryLookupReference repo branch_ref
-    Git.refGetTarget ref
+    mref <- Git.repositoryLookupReference repo branch_ref
+    -- XXX Handle errors
+    let ref = fromJust mref
+    moid <- Git.refGetTarget ref
+    return $ fromJust moid
 
 -- | Make a new commit to a repository's branch
 -- XXX Ignored error handling for the moment.
@@ -321,6 +329,168 @@ revertFileCommit repo branch filename commit_id = do
     -- Create a new commit: repositoryCreateCommit
     Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit]
 
+-- | File commit details
+data CommitDetails =
+    CommitDetails { cdCommit    :: T.Text
+                  , cdTime      :: T.Text
+                  , cdMessage   :: T.Text
+                  , cdRevision  :: Maybe Int
+    } deriving Show
+
+listCommits :: Git.Repository -> T.Text -> T.Text -> IO [CommitDetails]
+listCommits repo branch filename = do
+    mrevwalk <- Git.revisionWalkerNew repo
+    -- XXX Handle errors
+    let revwalk = fromJust mrevwalk
+    Git.revisionWalkerSetSortMode revwalk [Git.SortModeTime]
+    let branch_ref = T.pack $ printf "refs/heads/%s" branch
+    Git.revisionWalkerPushRef revwalk branch_ref
+
+    mfirst_id <- Git.revisionWalkerNext revwalk
+    commitDetails repo revwalk branch filename [] mfirst_id
+
+commitDetails :: Git.Repository -> Git.RevisionWalker -> T.Text -> T.Text -> [CommitDetails] -> Maybe Git.OId -> IO [CommitDetails]
+commitDetails _ _ _ _ details Nothing = return details
+commitDetails repo revwalk branch filename details next_id = do
+    let commit_id = fromJust next_id
+    mcommit_obj <- Git.repositoryLookupCommit repo commit_id
+    -- XXX Handle errors
+    let commit_obj = fromJust mcommit_obj
+
+    mparents <- Git.commitGetParents commit_obj
+    -- XXX Handle errors
+    let parents = fromJust mparents
+    num_parents <- Git.commitParentsGetSize parents
+
+    mtree <- Git.commitGetTree commit_obj
+    -- XXX Handle errors
+    let tree = fromJust mtree
+
+    is_diff <- if num_parents > 0
+        then do
+            commits <- mapM (Git.commitParentsGet parents) [0..num_parents-1]
+            allM (parentDiff repo filename tree) commits
+        else
+            return False
+
+    mnext_id <- Git.revisionWalkerNext revwalk
+    mentry <- Git.treeGetByName tree filename
+    if isJust mentry && is_diff
+        then getCommitDetails commit_id commit_obj mnext_id
+        else commitDetails repo revwalk branch filename details mnext_id
+
+  where
+    getCommitDetails :: Git.OId -> Git.Commit -> Maybe Git.OId -> IO [CommitDetails]
+    getCommitDetails commit_id commit_obj mnext_id = do
+        mtag <- findCommitTag repo branch filename commit_id
+        let revision = getRevisionFromTag mtag
+        -- Fill in a commit record
+        message <- Git.commitGetMessage commit_obj
+        mid <- Git.oIdToString commit_id
+        -- XXX How could that fail?
+        let commit_str = fromJust mid
+        sig <- Git.commitGetCommitter commit_obj
+
+        -- XXX No Idea How To Convert These Yet
+        datetime <- Git.signatureGetTime sig
+        timezone <- Git.signatureGetTimeZone sig
+        -- What do you do with the TimeZone?
+        timeval <- GLib.newZeroTimeVal
+        ok <- GLib.dateTimeToTimeval datetime timeval
+        -- XXX Handle error (ok == False)
+        time_str <- GLib.timeValToIso8601 timeval
+
+        let commit = CommitDetails {cdCommit=commit_str, cdTime=time_str, cdMessage=message, cdRevision=revision}
+        commitDetails repo revwalk branch filename (commit:details) mnext_id
+
+-- | Determine if there were changes between this commit and its parent
+--
+-- Return True if there were changes, False otherwise
+parentDiff :: Git.Repository -> T.Text -> Git.Tree -> Git.Commit -> IO Bool
+parentDiff repo filename commit_tree parent_commit = do
+    mdiff_opts <- Git.diffOptionsNew
+    -- XXX Handle errors
+    let diff_opts = fromJust mdiff_opts
+    Git.diffOptionsSetPathspec diff_opts (Just [filename])
+
+    mparent_tree <- Git.commitGetTree parent_commit
+    -- XXX Handle errors
+    let parent_tree = fromJust mparent_tree
+    mdiff <- Git.diffNewTreeToTree repo (Just commit_tree) (Just parent_tree) (Just diff_opts)
+    let diff = fromJust mdiff
+    num_deltas <- Git.diffGetNumDeltas diff
+    if num_deltas > 0
+    then return True
+    else return False
+
+-- | Find the revision tag pointing to a specific commit
+--
+-- Tag is of the form 'refs/tags/<branch>/<filename>/r<revision>
+-- There should really only be one.
+findCommitTag :: Git.Repository -> T.Text -> T.Text -> Git.OId -> IO (Maybe T.Text)
+findCommitTag repo branch filename commit_id = do
+    let tag_pattern = T.pack $ printf "%s/%s/r*" branch filename
+    mall_tags <- Git.repositoryListTagsMatch repo (Just tag_pattern)
+    case mall_tags of
+        Just []    -> return Nothing
+        Just tags  -> filterTags repo commit_id tags
+        Nothing    -> return Nothing
+  where
+    filterTags repo commit_id tags = do
+        commit_tags <- filterM (isCommitTag repo commit_id) tags
+        return $ maybeOneTag commit_tags
+
+    maybeOneTag :: [T.Text] -> Maybe T.Text
+    maybeOneTag []    = Nothing
+    maybeOneTag [tag] = Just tag
+    maybeOneTag _     = Nothing
+
+    -- | Return True if the tag is on the commit
+    isCommitTag :: Git.Repository -> Git.OId -> T.Text -> IO Bool
+    isCommitTag repo commit_id tag = do
+        -- Find the commit for this tag and check that it matches commit_id
+        -- If so, return the branch/filename/r* part of the tag
+        let ref_tag = T.pack $ printf "refs/tags/%s" tag
+        -- XXX This dumb thing will throw an exception if the reference is wrong
+        mref <- Git.repositoryLookupReference repo ref_tag
+        -- XXX Handle errors
+        let ref = fromJust mref
+        mtag_oid <- Git.refGetTarget ref
+        -- XXX Handle errors
+        let tag_oid = fromJust mtag_oid
+        mtag_obj <- Git.repositoryLookupTag repo tag_oid
+        -- XXX Handle errors
+        let tag_obj = fromJust mtag_obj
+        moid <- Git.tagGetTargetId tag_obj
+        -- XXX Handle errors
+        let oid = fromJust moid
+
+        cmp <- Git.oIdCompare oid commit_id
+        if cmp == 0
+            then return True
+            else return False
+
+-- | Return the revision number from a git tag
+-- Tag is of the form 'refs/tags/<branch>/<filename>/r<revision>
+--
+-- Returns a Just Int if all goes well, otherwise Nothing
+getRevisionFromTag :: Maybe T.Text -> Maybe Int
+getRevisionFromTag mtag = case mtag of
+    Nothing  -> Nothing
+    Just tag -> getRevision $ T.unpack tag
+  where
+    getRevision :: String -> Maybe Int
+    getRevision tag = do
+        -- Get the digits after the final r
+        let rs = findIndices (== 'r') tag
+        if length rs == 0
+            then Nothing
+            else readMaybe $ drop ((last rs)+1) tag
+
+printOId :: Git.OId -> IO ()
+printOId oid = do
+    moid_str <- Git.oIdToString oid
+    print moid_str
 
 -- | Test out git functions
 doGitTests :: FilePath -> IO ()
@@ -352,5 +522,7 @@ doGitTests path = do
     files <- listBranchFiles repo "master" Nothing
     print files
 
+    commits <- listCommits repo "master" "FRODO"
+    print commits
 
     return ()
