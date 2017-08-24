@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+
+# numpy depends on libtatlas and liblapack
+# so we use its integrated test suite to indirectly
+# test atlas and lapack
+python -c 'import numpy; numpy.test()'
+if [ $? != 0 ]; then
+    echo "ERROR: numpy.test() FAILED"
+    exit 1
+else
+    echo "INFO: numpy.test() PASSED"
+fi

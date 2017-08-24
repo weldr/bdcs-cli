@@ -92,7 +92,65 @@ if [ ! -f "$METADATA_DB" ]; then
             sqlite-3.7.17-8.el7.x86_64 systemd-219-30.el7.x86_64 systemd-libs-219-30.el7.x86_64 \
             tar-1.26-31.el7.x86_64 tcp_wrappers-libs-7.6-77.el7.x86_64 tmux-1.8-4.el7.x86_64 \
             tzdata-2016g-2.el7.noarch ustr-1.0.4-16.el7.x86_64 util-linux-2.23.2-33.el7.x86_64 \
-            xz-5.2.2-1.el7.x86_64 xz-libs-5.2.2-1.el7.x86_64 zlib-1.2.7-17.el7.x86_64; do
+            xz-5.2.2-1.el7.x86_64 xz-libs-5.2.2-1.el7.x86_64 zlib-1.2.7-17.el7.x86_64 \
+                                        \
+            atlas-3.10.1-10.el7.x86_64 \
+            basesystem-10.0-7.el7.centos.noarch \
+            bash-4.2.46-20.el7_2.x86_64 \
+            blas-3.4.2-5.el7.x86_64 \
+            bzip2-libs-1.0.6-13.el7.x86_64 \
+            ca-certificates-2015.2.6-73.el7.noarch \
+            centos-release-7-3.1611.el7.centos.x86_64 \
+            chkconfig-1.7.2-1.el7.x86_64 \
+            coreutils-8.22-18.el7.x86_64 \
+            expat-2.1.0-8.el7.x86_64 \
+            filesystem-3.2-21.el7.x86_64 \
+            gawk-4.0.2-4.el7.x86_64 \
+            gdbm-1.10-8.el7.x86_64 \
+            glibc-2.17-157.el7.x86_64 \
+            glibc-common-2.17-157.el7.x86_64 \
+            gmp-6.0.0-12.el7_1.x86_64 \
+            grep-2.20-2.el7.x86_64 \
+            info-5.1-4.el7.x86_64 \
+            keyutils-libs-1.5.8-3.el7.x86_64 \
+            krb5-libs-1.14.1-26.el7.x86_64 \
+            lapack-3.4.2-5.el7.x86_64 \
+            libacl-2.2.51-12.el7.x86_64 \
+            libattr-2.4.46-12.el7.x86_64 \
+            libcap-2.22-8.el7.x86_64 \
+            libcom_err-1.42.9-9.el7.x86_64 \
+            libdb-5.3.21-19.el7.x86_64 \
+            libffi-3.0.13-18.el7.x86_64 \
+            libgcc-4.8.5-11.el7.x86_64 \
+            libgfortran-4.8.5-11.el7.x86_64 \
+            libquadmath-4.8.5-11.el7.x86_64 \
+            libselinux-2.5-6.el7.x86_64 \
+            libsepol-2.5-6.el7.x86_64 \
+            libstdc++-4.8.5-11.el7.x86_64 \
+            libtasn1-3.8-3.el7.x86_64 \
+            libverto-0.2.5-4.el7.x86_64 \
+            ncurses-5.9-13.20130511.el7.x86_64 \
+            ncurses-base-5.9-13.20130511.el7.noarch \
+            ncurses-libs-5.9-13.20130511.el7.x86_64 \
+            nss-softokn-freebl-3.16.2.3-14.4.el7.x86_64 \
+            numpy-1.7.1-11.el7.x86_64 \
+            openssl-libs-1.0.1e-60.el7.x86_64 \
+            p11-kit-0.20.7-3.el7.x86_64 \
+            p11-kit-trust-0.20.7-3.el7.x86_64 \
+            pcre-8.32-15.el7_2.1.x86_64 \
+            popt-1.13-16.el7.x86_64 \
+            python-2.7.5-48.el7.x86_64 \
+            python-backports-1.0-8.el7.x86_64 \
+            python-backports-ssl_match_hostname-3.4.0.2-4.el7.noarch \
+            python-libs-2.7.5-48.el7.x86_64 \
+            python-nose-1.3.0-3.el7.noarch \
+            python-setuptools-0.9.8-4.el7.noarch \
+            readline-6.2-9.el7.x86_64 \
+            sed-4.2.2-5.el7.x86_64 \
+            setup-2.8.71-7.el7.noarch \
+            sqlite-3.7.17-8.el7.x86_64 \
+            tzdata-2016g-2.el7.noarch \
+            zlib-1.2.7-17.el7.x86_64; do
         "$IMPORT" "$METADATA_DB" "$CENTOS_REPO" "http://mirror.centos.org/centos/7/os/x86_64/Packages/$RPM.rpm"
     done
 fi
