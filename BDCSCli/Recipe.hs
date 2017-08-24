@@ -335,14 +335,14 @@ data CommitDetails =
                   , cdTime      :: T.Text
                   , cdMessage   :: T.Text
                   , cdRevision  :: Maybe Int
-    } deriving Show
+    } deriving (Show, Eq)
 
 listCommits :: Git.Repository -> T.Text -> T.Text -> IO [CommitDetails]
 listCommits repo branch filename = do
     mrevwalk <- Git.revisionWalkerNew repo
     -- XXX Handle errors
     let revwalk = fromJust mrevwalk
-    Git.revisionWalkerSetSortMode revwalk [Git.SortModeTime]
+    Git.revisionWalkerSetSortMode revwalk [Git.SortModeTime, Git.SortModeReverse]
     let branch_ref = T.pack $ printf "refs/heads/%s" branch
     Git.revisionWalkerPushRef revwalk branch_ref
 
@@ -487,6 +487,59 @@ getRevisionFromTag mtag = case mtag of
             then Nothing
             else readMaybe $ drop ((last rs)+1) tag
 
+-- | Tag a file's most recent commit
+--
+-- This uses git tags, of the form `refs/tags/<branch>/<filename>/r<revision>`
+-- Only the most recent recipe commit can be tagged to prevent out of order tagging.
+-- Revisions start at 1 and increment for each new commit that is tagged.
+-- If the commit has already been tagged it will return false.
+tagFileCommit :: Git.Repository -> T.Text -> T.Text -> IO Bool
+tagFileCommit repo branch filename = do
+    commits <- listCommits repo branch filename
+    let rev_commit = findLastRev commits
+    -- If there are no commits, or the most recent one has already been tagged, return False
+    if length commits == 0 || isFirstCommit commits rev_commit
+        then return False
+        else tagNewestCommit repo branch filename (commits !! 0) rev_commit
+  where
+    -- | Tag the most recent commit
+    tagNewestCommit :: Git.Repository -> T.Text -> T.Text -> CommitDetails -> Maybe CommitDetails -> IO Bool
+    tagNewestCommit repo branch filename last_commit rev_commit = do
+        -- What revision is this? rev_commit may be Nothing, or cdRevision may be Nothing. Use 1 for those cases
+        let rev = if isJust rev_commit && isJust (cdRevision (fromJust rev_commit))
+                  then (fromJust (cdRevision (fromJust rev_commit))) + 1
+                  else 1
+
+        let name = T.pack $ printf "%s/%s/r%d" branch filename rev
+        sig <- Git.signatureNewNow "bdcs-cli" "user-email"
+        mcommit_id <- Git.oIdNewFromString (cdCommit last_commit)
+        -- XXX Handle errors
+        let commit_id = fromJust mcommit_id
+        -- XXX don't know how to create a GType here...
+        commit_type <- gobjectType (undefined :: Git.Commit)
+        commit_obj <- Git.repositoryLookup repo commit_id commit_type
+        mtag_id <- Git.repositoryCreateTag repo name commit_obj sig name [Git.CreateFlagsNone]
+        if isJust mtag_id
+            then return True
+            else return False
+
+    -- | Find the last revision in the commits and return it
+    findLastRev :: [CommitDetails] -> Maybe CommitDetails
+    findLastRev []= Nothing
+    findLastRev (x:xs) = case cdRevision x of
+                             Nothing  -> findLastRev xs
+                             Just _   -> Just x
+
+    -- | Is the revision commit the most recent one?
+    --
+    -- If it is, then we cannot make a new tag.
+    -- If it is not, or there is no rev_commit, we can tag a new one.
+    isFirstCommit :: [CommitDetails] -> Maybe CommitDetails -> Bool
+    isFirstCommit commits rev_commit = case rev_commit of
+                                           Nothing -> False
+                                           Just commit -> commit == commits !! 0
+
+
 printOId :: Git.OId -> IO ()
 printOId oid = do
     moid_str <- Git.oIdToString oid
@@ -499,10 +552,10 @@ doGitTests path = do
     Git.init
     repo <- openOrCreateRepo path
 -- WORKS
---    commit_id <- writeCommit repo "master" "README" "A test commit\n\nWith some commentary." "Some Content"
---    commit_id <- writeCommit repo "master" "README" "A test commit 2\n\nWith some other commentary." "Some Content #2"
---    commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some stuff to do." "Some Content"
---    commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some commentary." "Some other Content"
+    commit_id <- writeCommit repo "master" "README" "A test commit\n\nWith some commentary." "Some Content"
+    commit_id <- writeCommit repo "master" "README" "A test commit 2\n\nWith some other commentary." "Some Content #2"
+    commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some stuff to do." "Some Content"
+    commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some commentary." "Some other Content"
 
     files <- listBranchFiles repo "master" Nothing
     print files
@@ -524,5 +577,14 @@ doGitTests path = do
 
     commits <- listCommits repo "master" "FRODO"
     print commits
+
+    commits <- listCommits repo "master" "TODO"
+    print commits
+
+    -- First is True, 2nd is False (because there are no new commits)
+    ok <- tagFileCommit repo "master" "FRODO"
+    print ok
+    ok <- tagFileCommit repo "master" "FRODO"
+    print ok
 
     return ()
