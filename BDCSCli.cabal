@@ -37,6 +37,7 @@ library
                         lens-aeson,
                         monad-loops,
                         process,
+                        semver,
                         split,
                         temporary,
                         text,

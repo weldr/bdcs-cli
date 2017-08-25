@@ -27,14 +27,17 @@ import           Control.Monad.Loops(allM)
 import           Data.Aeson(toJSON, fromJSON)
 import           Data.Aeson.Types(Result(..))
 import qualified Data.ByteString as BS
-import           Data.List(findIndices)
+import           Data.Either(rights)
+import           Data.List(findIndices, isSuffixOf)
 import           Data.Maybe(fromJust, fromMaybe, isJust)
+import qualified Data.SemVer as SV
 import qualified Data.Text as T
+import           Data.Text.Encoding(encodeUtf8)
 import           Data.Word(Word32)
 import           GI.Gio
 import qualified GI.Ggit as Git
 import qualified GI.GLib as GLib
-import           System.Directory(doesPathExist)
+import           System.Directory(doesPathExist, listDirectory)
 import           Text.Printf(printf)
 import           Text.Read(readMaybe)
 import           Text.Toml(parseTomlDoc)
@@ -64,6 +67,44 @@ recipeTOML Recipe{..} = T.concat [nameText, versionText, descriptionText, module
     moduleText name RecipeModule{..} = T.pack $ printf "[[%s]]\nname = \"%s\"\nversion = \"%s\"\n\n" name rmName rmVersion
     packagesText = T.concat $ map (moduleText "packages") rPackages
     modulesText = T.concat $ map (moduleText "modules") rModules
+
+-- | Convert a recipe name to a toml filename
+--
+-- Replaces spaces with - and append .toml
+recipeTomlFilename :: String -> T.Text
+recipeTomlFilename name = T.append (T.replace " " "-" (T.pack name)) ".toml"
+
+-- | semver recipe version number bump
+--
+-- If neither have a version 0.0.1 is returned
+-- If there is no previous version the new version is checked and returned
+-- If there is no new version, but there is a previous one, bump its patch level
+-- If the previous and new versions are the same, bump the patch level
+-- If they are different, check and return the new version
+recipeBumpVersion :: Maybe String -> Maybe String -> Either String String
+recipeBumpVersion Nothing Nothing = Right "0.0.1"
+-- Only a new version, make sure the new version can be parsed
+recipeBumpVersion Nothing (Just new_ver) =
+    case SV.fromText (T.pack new_ver) of
+        Right _ -> Right new_ver
+        Left  _ -> Left ("Failed to parse version: " ++ new_ver)
+-- If there was a previous version and no new one, bump the patch level
+recipeBumpVersion (Just prev_ver) Nothing =
+    case SV.fromText (T.pack prev_ver) of
+        Right version -> Right $ SV.toString $ SV.incrementPatch version
+        Left _        -> Left ("Failed to parse version: " ++ prev_ver)
+recipeBumpVersion (Just prev_ver) (Just new_ver)
+    | prev_ver == new_ver = bumpNewVer
+    | otherwise           = checkNewVer
+  where
+    bumpNewVer =
+        case SV.fromText (T.pack new_ver) of
+            Right version -> Right $ SV.toString $ SV.incrementPatch version
+            Left _        -> Left ("Failed to parse version: " ++ new_ver)
+    checkNewVer =
+        case SV.fromText (T.pack new_ver) of
+            Right _ -> Right new_ver
+            Left  _ -> Left ("Failed to parse version: " ++ new_ver)
 
 -- | Open a Git repository, or create the initial repository if one doesn't exist
 openOrCreateRepo :: FilePath -> IO Git.Repository
@@ -540,6 +581,37 @@ tagFileCommit repo branch filename = do
                                            Just commit -> commit == commits !! 0
 
 
+-- | Read and parse a recipe file
+commitRecipeFile :: Git.Repository -> T.Text -> FilePath -> IO Git.OId
+commitRecipeFile repo branch filename = do
+    toml_in <- readFile filename
+    let erecipe = parseRecipe (T.pack toml_in)
+    -- XXX Handle errors
+    let recipe = head $ rights [erecipe]
+    commitRecipe repo branch recipe
+
+-- | Commit a Recipe record to a branch
+commitRecipe :: Git.Repository -> T.Text -> Recipe -> IO Git.OId
+commitRecipe repo branch recipe = do
+    let toml_out = encodeUtf8 $ recipeTOML recipe
+    let filename = recipeTomlFilename (rName recipe)
+    let eversion = recipeBumpVersion Nothing (rVersion recipe)
+    -- XXX Handle errors
+    let version = head $ rights [eversion]
+    let message = T.pack $ printf "Recipe %s, version %s saved" filename version
+    writeCommit repo branch filename message toml_out
+
+-- | Commit recipes from a directory, if they don't already exist
+--
+commitRecipeDirectory :: Git.Repository -> T.Text -> FilePath -> IO [Git.OId]
+commitRecipeDirectory repo branch directory = do
+    branch_files <- listBranchFiles repo branch Nothing
+    files <- map (directory ++) <$> filter (skipFiles branch_files) <$> listDirectory directory
+    mapM (commitRecipeFile repo branch) files
+  where
+    skipFiles :: [T.Text] -> String -> Bool
+    skipFiles branch_files file = (T.pack file) `notElem` branch_files && ".toml" `isSuffixOf` file
+
 printOId :: Git.OId -> IO ()
 printOId oid = do
     moid_str <- Git.oIdToString oid
@@ -586,5 +658,7 @@ doGitTests path = do
     print ok
     ok <- tagFileCommit repo "master" "FRODO"
     print ok
+
+    commitRecipeDirectory repo "master" "/home/bcl/tmp/recipes/"
 
     return ()
