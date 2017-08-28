@@ -250,8 +250,8 @@ getFilenames' tree filenames idx = do
         Nothing   -> getFilenames' tree filenames (idx-1)
 
 -- | List the files on a branch
-listBranchFiles :: Git.Repository -> T.Text -> Maybe T.Text -> IO [T.Text]
-listBranchFiles repo branch Nothing = do
+listBranchFiles :: Git.Repository -> T.Text -> IO [T.Text]
+listBranchFiles repo branch = do
     mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
     -- XXX Handle errors
     let branch_obj = fromJust mbranch
@@ -604,7 +604,7 @@ commitRecipe repo branch recipe = do
 --
 commitRecipeDirectory :: Git.Repository -> T.Text -> FilePath -> IO [Git.OId]
 commitRecipeDirectory repo branch directory = do
-    branch_files <- listBranchFiles repo branch Nothing
+    branch_files <- listBranchFiles repo branch
     files <- map (directory ++) . filter (skipFiles branch_files) <$> listDirectory directory
     mapM (commitRecipeFile repo branch) files
   where
@@ -628,22 +628,22 @@ doGitTests path = do
     commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some stuff to do." "Some Content"
     commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some commentary." "Some other Content"
 
-    files <- listBranchFiles repo "master" Nothing
+    files <- listBranchFiles repo "master"
     print files
 
     commit_id <- writeCommit repo "master" "FRODO" "A list of stuff to be accomplished\n\nFind a magic ring" "Some other Content"
-    files <- listBranchFiles repo "master" Nothing
+    files <- listBranchFiles repo "master"
     print files
 
     deleteFile repo "master" "FRODO"
 
-    files <- listBranchFiles repo "master" Nothing
+    files <- listBranchFiles repo "master"
     print files
 
     -- Revert the delete
     revertFileCommit repo "master" "FRODO" commit_id
 
-    files <- listBranchFiles repo "master" Nothing
+    files <- listBranchFiles repo "master"
     print files
 
     commits <- listCommits repo "master" "FRODO"
