@@ -21,14 +21,14 @@ module BDCSCli.Recipe(parseRecipe,
                       doGitTests)
   where
 
-import           Control.Conditional(ifM, when)
+import           Control.Conditional(ifM)
 import           Control.Monad(filterM)
 import           Control.Monad.Loops(allM)
 import           Data.Aeson(toJSON, fromJSON)
 import           Data.Aeson.Types(Result(..))
 import qualified Data.ByteString as BS
 import           Data.Either(rights)
-import           Data.List(findIndices, isSuffixOf)
+import           Data.List(elemIndices, isSuffixOf)
 import           Data.Maybe(fromJust, fromMaybe, isJust)
 import qualified Data.SemVer as SV
 import qualified Data.Text as T
@@ -132,9 +132,7 @@ openOrCreateRepo path = do
 findOrCreateBranch :: Git.Repository -> T.Text -> IO Git.Branch
 findOrCreateBranch repo branch = do
     mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
-    if isJust mbranch
-    then return $ fromJust mbranch
-    else createBranch repo branch
+    maybe (createBranch repo branch) return mbranch
   where
     createBranch repo branch = do
         head_ref <- Git.repositoryGetHead repo
@@ -199,8 +197,8 @@ readCommit :: Git.Repository -> T.Text -> T.Text -> Maybe T.Text -> IO BS.ByteSt
 readCommit repo branch filename Nothing = do
     let spec = T.pack $ printf "%s:%s" branch filename
     readCommitSpec repo spec
-readCommit repo branch filename commit = do
-    let spec = T.pack $ printf "%s:%s" (fromJust $ commit) filename
+readCommit repo _ filename commit = do
+    let spec = T.pack $ printf "%s:%s" (fromJust commit) filename
     readCommitSpec repo spec
 
 -- | Read a commit usinga revspec, return the ByteString content
@@ -222,13 +220,13 @@ getFilename tree idx = do
 
     -- Only allow Blob and BlobExecutable
     isBlob <- isFileBlob entry
-    case isBlob of
-        False   -> return Nothing
-        True    -> do
+    if isBlob
+        then do
             mfilename <- Git.treeEntryGetName entry
             -- XXX Handle errors
             let name = fromJust mfilename
             return $ Just name
+        else return Nothing
  where
     isFileBlob entry = do
         mode <- Git.treeEntryGetFileMode entry
@@ -237,6 +235,7 @@ getFilename tree idx = do
             Git.FileModeBlobExecutable -> return True
             _                          -> return False
 
+{-# ANN getFilenames ("HLint: ignore Eta reduce"::String) #-}
 -- | Get a list of the Blob tree entry filenames
 getFilenames :: Git.Tree -> Word32 -> IO [T.Text]
 getFilenames tree idx = getFilenames' tree [] idx
@@ -523,10 +522,10 @@ getRevisionFromTag mtag = case mtag of
     getRevision :: String -> Maybe Int
     getRevision tag = do
         -- Get the digits after the final r
-        let rs = findIndices (== 'r') tag
-        if length rs == 0
+        let rs = elemIndices 'r' tag
+        if null rs
             then Nothing
-            else readMaybe $ drop ((last rs)+1) tag
+            else readMaybe $ drop (last rs + 1) tag
 
 -- | Tag a file's most recent commit
 --
@@ -539,16 +538,16 @@ tagFileCommit repo branch filename = do
     commits <- listCommits repo branch filename
     let rev_commit = findLastRev commits
     -- If there are no commits, or the most recent one has already been tagged, return False
-    if length commits == 0 || isFirstCommit commits rev_commit
+    if null commits || isFirstCommit commits rev_commit
         then return False
-        else tagNewestCommit repo branch filename (commits !! 0) rev_commit
+        else tagNewestCommit repo branch filename (head commits) rev_commit
   where
     -- | Tag the most recent commit
     tagNewestCommit :: Git.Repository -> T.Text -> T.Text -> CommitDetails -> Maybe CommitDetails -> IO Bool
     tagNewestCommit repo branch filename last_commit rev_commit = do
         -- What revision is this? rev_commit may be Nothing, or cdRevision may be Nothing. Use 1 for those cases
         let rev = if isJust rev_commit && isJust (cdRevision (fromJust rev_commit))
-                  then (fromJust (cdRevision (fromJust rev_commit))) + 1
+                  then fromJust (cdRevision (fromJust rev_commit)) + 1
                   else 1
 
         let name = T.pack $ printf "%s/%s/r%d" branch filename rev
@@ -578,7 +577,7 @@ tagFileCommit repo branch filename = do
     isFirstCommit :: [CommitDetails] -> Maybe CommitDetails -> Bool
     isFirstCommit commits rev_commit = case rev_commit of
                                            Nothing -> False
-                                           Just commit -> commit == commits !! 0
+                                           Just commit -> commit == head commits
 
 
 -- | Read and parse a recipe file
@@ -606,11 +605,11 @@ commitRecipe repo branch recipe = do
 commitRecipeDirectory :: Git.Repository -> T.Text -> FilePath -> IO [Git.OId]
 commitRecipeDirectory repo branch directory = do
     branch_files <- listBranchFiles repo branch Nothing
-    files <- map (directory ++) <$> filter (skipFiles branch_files) <$> listDirectory directory
+    files <- map (directory ++) . filter (skipFiles branch_files) <$> listDirectory directory
     mapM (commitRecipeFile repo branch) files
   where
     skipFiles :: [T.Text] -> String -> Bool
-    skipFiles branch_files file = (T.pack file) `notElem` branch_files && ".toml" `isSuffixOf` file
+    skipFiles branch_files file = T.pack file `notElem` branch_files && ".toml" `isSuffixOf` file
 
 printOId :: Git.OId -> IO ()
 printOId oid = do
