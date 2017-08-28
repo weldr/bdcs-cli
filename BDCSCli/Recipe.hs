@@ -132,9 +132,9 @@ openOrCreateRepo path = do
 findOrCreateBranch :: Git.Repository -> T.Text -> IO Git.Branch
 findOrCreateBranch repo branch = do
     mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
-    maybe (createBranch repo branch) return mbranch
+    maybe createBranch return mbranch
   where
-    createBranch repo branch = do
+    createBranch = do
         head_ref <- Git.repositoryGetHead repo
         parent_obj <- Git.refLookup head_ref
         mbranch <- Git.repositoryCreateBranch repo branch parent_obj [Git.CreateFlagsNone]
@@ -473,11 +473,11 @@ findCommitTag repo branch filename commit_id = do
     mall_tags <- Git.repositoryListTagsMatch repo (Just tag_pattern)
     case mall_tags of
         Just []    -> return Nothing
-        Just tags  -> filterTags repo commit_id tags
+        Just tags  -> filterTags tags
         Nothing    -> return Nothing
   where
-    filterTags repo commit_id tags = do
-        commit_tags <- filterM (isCommitTag repo commit_id) tags
+    filterTags tags = do
+        commit_tags <- filterM isCommitTag tags
         return $ maybeOneTag commit_tags
 
     maybeOneTag :: [T.Text] -> Maybe T.Text
@@ -486,8 +486,8 @@ findCommitTag repo branch filename commit_id = do
     maybeOneTag _     = Nothing
 
     -- | Return True if the tag is on the commit
-    isCommitTag :: Git.Repository -> Git.OId -> T.Text -> IO Bool
-    isCommitTag repo commit_id tag = do
+    isCommitTag :: T.Text -> IO Bool
+    isCommitTag tag = do
         -- Find the commit for this tag and check that it matches commit_id
         -- If so, return the branch/filename/r* part of the tag
         let ref_tag = T.pack $ printf "refs/tags/%s" tag
@@ -540,11 +540,11 @@ tagFileCommit repo branch filename = do
     -- If there are no commits, or the most recent one has already been tagged, return False
     if null commits || isFirstCommit commits rev_commit
         then return False
-        else tagNewestCommit repo branch filename (head commits) rev_commit
+        else tagNewestCommit (head commits) rev_commit
   where
     -- | Tag the most recent commit
-    tagNewestCommit :: Git.Repository -> T.Text -> T.Text -> CommitDetails -> Maybe CommitDetails -> IO Bool
-    tagNewestCommit repo branch filename last_commit rev_commit = do
+    tagNewestCommit :: CommitDetails -> Maybe CommitDetails -> IO Bool
+    tagNewestCommit last_commit rev_commit = do
         -- What revision is this? rev_commit may be Nothing, or cdRevision may be Nothing. Use 1 for those cases
         let rev = if isJust rev_commit && isJust (cdRevision (fromJust rev_commit))
                   then fromJust (cdRevision (fromJust rev_commit)) + 1
