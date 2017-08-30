@@ -1,6 +1,8 @@
 dist: trusty
 sudo: required
 language: c
+services:
+  - docker
 
 cache:
   directories:
@@ -8,8 +10,9 @@ cache:
     - ~/.cabal
 
 before_install:
-  - pip install s3cmd
-  - wget https://haskell.org/platform/download/8.0.2/haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
+  - sudo docker pull welder/bdcs-api-rs:latest
+  - pip install s3cmd toml parameterized
+  - wget --progress=dot:giga https://haskell.org/platform/download/8.0.2/haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
   - tar -xzvf ./haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
   - sudo ./install-haskell-platform.sh
   - travis_retry cabal update && cabal install hlint hpc-coveralls
@@ -23,6 +26,8 @@ script:
 
   # tests for bdcs-cli binary
   - ./tests/test_binary.sh
+  # depsolve integration tests
+  - ./tests/test_depsolve.sh
 
   # collect binary coverage
   - mkdir ./dist/hpc/vanilla/tix/bdcs-cli/
