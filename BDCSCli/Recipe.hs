@@ -22,6 +22,7 @@ module BDCSCli.Recipe(parseRecipe,
   where
 
 import           Control.Conditional(ifM)
+import           Control.Exception
 import           Control.Monad(filterM)
 import           Control.Monad.Loops(allM)
 import           Data.Aeson(toJSON, fromJSON)
@@ -43,6 +44,55 @@ import           Text.Read(readMaybe)
 import           Text.Toml(parseTomlDoc)
 
 import           BDCSCli.API.V0(Recipe(..), RecipeModule(..))
+import           BDCSCli.Utilities(maybeThrow)
+
+data GitError =
+    OpenRepoError
+  | CreateRepoError
+  | CreateBlobError
+  | CreateCommitError
+  | CreateBranchError
+  | BranchNameError
+  | WriteTreeError
+  | GetIndexError
+  | GetHeadError
+  | RefLookupError
+  | TreeBuilderError
+  | GetByNameError
+  | GetNameError
+  | GetTargetError
+  | GetTimeError
+  | GetTimeZoneError
+  | GetTreeError
+  | GetTreeIdError
+  | GetCommitterError
+  | GetMessageError
+  | GetParentsError
+  | LookupError
+  | LookupBlobError
+  | LookupBranchError
+  | LookupCommitError
+  | LookupTagError
+  | LookupTreeError
+  | LookupReferenceError
+  | RevparseError
+  | BuilderWriteError
+  | BuilderInsertError
+  | GetEntryIdError
+  | GetIdError
+  | GetRawBlobError
+  | GetTargetIdError
+  | NewOIdError
+  | NewOptionsError
+  | NewTimeValError
+  | NewTreeError
+  | NewSignatureError
+  | NewWalkerError
+  | OIdError
+  deriving (Eq, Show)
+
+instance Exception GitError
+
 
 -- | Parse a TOML formatted string and return a Recipe
 parseRecipe :: T.Text -> Either String Recipe
@@ -111,20 +161,22 @@ openOrCreateRepo :: FilePath -> IO Git.Repository
 openOrCreateRepo path = do
     gfile <- fileNewForPath path
     ifM (doesPathExist path)
-        (Git.repositoryOpen gfile)
+        (openRepo gfile)
         (createWithInitialCommit gfile)
   where
+    openRepo gfile = Git.repositoryOpen gfile >>= maybeThrow OpenRepoError
+
     createWithInitialCommit gfile = do
-        repo <- Git.repositoryInitRepository gfile True
+        repo <- Git.repositoryInitRepository gfile True >>= maybeThrow CreateRepoError
 
         -- Make an empty initial commit
-        sig <- Git.signatureNewNow "bdcs-cli" "user-email"
-        index <- Git.repositoryGetIndex repo
-        tree_id <- Git.indexWriteTree index
-        tree <- fromJust <$> Git.repositoryLookupTree repo tree_id
+        sig <- Git.signatureNewNow "bdcs-cli" "user-email" >>= maybeThrow NewSignatureError
+        index <- Git.repositoryGetIndex repo >>= maybeThrow GetIndexError
+        tree_id <- Git.indexWriteTree index >>= maybeThrow WriteTreeError
+        tree <- Git.repositoryLookupTree repo tree_id >>= maybeThrow LookupTreeError
         let ref = Just "HEAD"
         let encoding = Just "UTF-8"
-        commit_id <- Git.repositoryCreateCommit repo ref sig sig encoding "Initial Recipe repository commit" tree []
+        Git.repositoryCreateCommit repo ref sig sig encoding "Initial Recipe repository commit" tree [] >>= maybeThrow CreateCommitError
 
         return repo
 
@@ -135,61 +187,43 @@ findOrCreateBranch repo branch = do
     maybe createBranch return mbranch
   where
     createBranch = do
-        head_ref <- Git.repositoryGetHead repo
-        parent_obj <- Git.refLookup head_ref
-        mbranch <- Git.repositoryCreateBranch repo branch parent_obj [Git.CreateFlagsNone]
-        -- XXX Handle errors
-        return $ fromJust mbranch
+        head_ref <- Git.repositoryGetHead repo >>= maybeThrow GetHeadError
+        parent_obj <- Git.refLookup head_ref >>= maybeThrow RefLookupError
+        Git.repositoryCreateBranch repo branch parent_obj [Git.CreateFlagsNone] >>= maybeThrow CreateBranchError
 
 -- | Convert a Branch object to an OId
--- XXX Ignored error handling for the moment.
 getBranchOIdFromObject :: Git.Repository -> Git.Branch -> IO Git.OId
 getBranchOIdFromObject repo branch_obj = do
-    branch_name <- Git.branchGetName branch_obj
+    branch_name <- Git.branchGetName branch_obj >>= maybeThrow BranchNameError
     let branch_ref = T.pack $ printf "refs/heads/%s" branch_name
-    mref <- Git.repositoryLookupReference repo branch_ref
-    -- XXX Handle errors
-    let ref = fromJust mref
-    moid <- Git.refGetTarget ref
-    return $ fromJust moid
+    ref <- Git.repositoryLookupReference repo branch_ref >>= maybeThrow LookupReferenceError
+    Git.refGetTarget ref >>= maybeThrow GetTargetError
 
 -- | Make a new commit to a repository's branch
--- XXX Ignored error handling for the moment.
 writeCommit :: Git.Repository -> T.Text -> T.Text -> T.Text -> BS.ByteString -> IO Git.OId
 writeCommit repo branch filename message content = do
     -- does the branch exist? If so get its OId: repositoryLookupBranch
     -- If it does not, create it and get its OId: repositoryCreateBranch
     branch_obj <- findOrCreateBranch repo branch
     branch_id <- getBranchOIdFromObject repo branch_obj
-
-    -- get the parent commit for this branch: repositoryLookupCommit
-    mparent_commit <- Git.repositoryLookupCommit repo branch_id
-    -- XXX Handle errors
-    let parent_commit = fromJust mparent_commit
-
-    -- create a blob for content: repositoryCreateBlobFromBuffer
-    blob_id <- Git.repositoryCreateBlobFromBuffer repo content
+    parent_commit <- Git.repositoryLookupCommit repo branch_id >>= maybeThrow LookupCommitError
+    blob_id <- Git.repositoryCreateBlobFromBuffer repo content >>= maybeThrow CreateBlobError
 
     -- Use treebuilder to make a new entry for this filename and blob: repositoryCreateTreeBuilderFromTree
-    mparent_tree <- Git.commitGetTree parent_commit
-    -- XXX Handle errors
-    let parent_tree = fromJust mparent_tree
-    builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree
-    -- treeBuilderInsert, treeBuilderWrite
-    Git.treeBuilderInsert builder filename blob_id Git.FileModeBlob
-    tree_id <- Git.treeBuilderWrite builder
-    -- XXX Handle errors
-    mtree <- Git.repositoryLookupTree repo tree_id
-    let tree = fromJust mtree
+    parent_tree <- Git.commitGetTree parent_commit >>= maybeThrow GetTreeError
+    builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree >>= maybeThrow TreeBuilderError
+    Git.treeBuilderInsert builder filename blob_id Git.FileModeBlob >>= maybeThrow BuilderInsertError
+    tree_id <- Git.treeBuilderWrite builder >>= maybeThrow BuilderWriteError
+    tree <- Git.repositoryLookupTree repo tree_id >>= maybeThrow LookupTreeError
 
     -- Create a signature
-    sig <- Git.signatureNewNow "bdcs-cli" "user-email"
+    sig <- Git.signatureNewNow "bdcs-cli" "user-email" >>= maybeThrow NewSignatureError
 
     let ref = Just $ T.pack $ printf "refs/heads/%s" branch
     let encoding = Just "UTF-8"
 
     -- Create a new commit: repositoryCreateCommit
-    Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit]
+    Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit] >>= maybeThrow CreateCommitError
 
 -- | Read a commit and return a ByteString of the content
 -- TODO Return the commit message too
@@ -204,27 +238,21 @@ readCommit repo _ filename commit = do
 -- | Read a commit usinga revspec, return the ByteString content
 readCommitSpec :: Git.Repository -> T.Text -> IO BS.ByteString
 readCommitSpec repo spec = do
-    obj <- Git.repositoryRevparse repo spec
-    oid <- Git.objectGetId obj
-    -- XXX Handle errors
-    mblob <- Git.repositoryLookupBlob repo oid
-    let blob = fromJust mblob
-    Git.blobGetRawContent blob
+    obj <- Git.repositoryRevparse repo spec >>= maybeThrow RevparseError
+    oid <- Git.objectGetId obj >>= maybeThrow GetIdError
+    blob <- Git.repositoryLookupBlob repo oid >>= maybeThrow LookupBlobError
+    Git.blobGetRawContent blob >>= maybeThrow GetRawBlobError
 
 -- | Get the filename for a Blob tree entry
 getFilename :: Git.Tree -> Word32 -> IO (Maybe T.Text)
 getFilename tree idx = do
-    mentry <- Git.treeGet tree idx
-    -- XXX Handle errors
-    let entry = fromJust mentry
+    entry <- Git.treeGet tree idx >>= maybeThrow GetTreeError
 
     -- Only allow Blob and BlobExecutable
     isBlob <- isFileBlob entry
     if isBlob
         then do
-            mfilename <- Git.treeEntryGetName entry
-            -- XXX Handle errors
-            let name = fromJust mfilename
+            name <- Git.treeEntryGetName entry >>= maybeThrow GetNameError
             return $ Just name
         else return Nothing
  where
@@ -252,54 +280,35 @@ getFilenames' tree filenames idx = do
 -- | List the files on a branch
 listBranchFiles :: Git.Repository -> T.Text -> IO [T.Text]
 listBranchFiles repo branch = do
-    mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
-    -- XXX Handle errors
-    let branch_obj = fromJust mbranch
+    branch_obj <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal >>= maybeThrow LookupBranchError
     branch_id <- getBranchOIdFromObject repo branch_obj
     -- get the parent commit for this branch: repositoryLookupCommit
-    mparent_commit <- Git.repositoryLookupCommit repo branch_id
-    -- XXX Handle errors
-    let parent_commit = fromJust mparent_commit
+    parent_commit <- Git.repositoryLookupCommit repo branch_id >>= maybeThrow LookupCommitError
     listCommitFiles repo parent_commit
 
 -- | List the files in a commit
 listCommitFiles :: Git.Repository -> Git.Commit -> IO [T.Text]
 listCommitFiles repo commit = do
-    mparent_tree_id <- Git.commitGetTreeId commit
-    let parent_tree_id = fromJust mparent_tree_id
-
-    mtree <- Git.repositoryLookupTree repo parent_tree_id
-    -- XXX Handle errors
-    let tree = fromJust mtree
-
+    parent_tree_id <- Git.commitGetTreeId commit >>= maybeThrow GetTreeIdError
+    tree <- Git.repositoryLookupTree repo parent_tree_id >>= maybeThrow LookupTreeError
     sz <- Git.treeSize tree
     getFilenames tree sz
 
 deleteFile :: Git.Repository -> T.Text -> T.Text -> IO Git.OId
 deleteFile repo branch filename = do
-    mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
-    -- XXX Handle errors
-    let branch_obj = fromJust mbranch
+    branch_obj <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal >>= maybeThrow LookupBranchError
     branch_id <- getBranchOIdFromObject repo branch_obj
-    -- get the parent commit for this branch: repositoryLookupCommit
-    mparent_commit <- Git.repositoryLookupCommit repo branch_id
-    -- XXX Handle errors
-    let parent_commit = fromJust mparent_commit
+    parent_commit <- Git.repositoryLookupCommit repo branch_id >>= maybeThrow LookupCommitError
 
     -- Use treebuilder to modify the tree
-    mparent_tree <- Git.commitGetTree parent_commit
-    -- XXX Handle errors
-    let parent_tree = fromJust mparent_tree
-    builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree
-    -- treeBuilderInsert, treeBuilderWrite
+    parent_tree <- Git.commitGetTree parent_commit >>= maybeThrow GetTreeError
+    builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree >>= maybeThrow TreeBuilderError
     Git.treeBuilderRemove builder filename
-    tree_id <- Git.treeBuilderWrite builder
-    -- XXX Handle errors
-    mtree <- Git.repositoryLookupTree repo tree_id
-    let tree = fromJust mtree
+    tree_id <- Git.treeBuilderWrite builder >>= maybeThrow BuilderWriteError
+    tree <- Git.repositoryLookupTree repo tree_id >>= maybeThrow LookupTreeError
 
     -- Create a signature
-    sig <- Git.signatureNewNow "bdcs-cli" "user-email"
+    sig <- Git.signatureNewNow "bdcs-cli" "user-email" >>= maybeThrow NewSignatureError
 
     let ref = Just $ T.pack $ printf "refs/heads/%s" branch
     let encoding = Just "UTF-8"
@@ -307,67 +316,45 @@ deleteFile repo branch filename = do
     let message = T.pack $ printf "Recipe %s deleted" filename
 
     -- Create a new commit: repositoryCreateCommit
-    Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit]
+    Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit] >>= maybeThrow  CreateCommitError
 
 revertFile :: Git.Repository -> T.Text -> T.Text -> T.Text -> IO Git.OId
 revertFile repo branch filename commit = do
-    mcommit_id <- Git.oIdNewFromString commit
-    -- XXX Handle errors
-    let commit_id = fromJust mcommit_id
+    commit_id <- Git.oIdNewFromString commit >>= maybeThrow NewOIdError
     revertFileCommit repo branch filename commit_id
 
 revertFileCommit :: Git.Repository -> T.Text -> T.Text -> Git.OId -> IO Git.OId
 revertFileCommit repo branch filename commit_id = do
-    mcommit_obj <- Git.repositoryLookupCommit repo commit_id
-    -- XXX Handle errors
-    let commit_obj = fromJust mcommit_obj
-    mrevert_tree <- Git.commitGetTree commit_obj
-    -- XXX Handle errors
-    let revert_tree = fromJust mrevert_tree
-    mentry <- Git.treeGetByName revert_tree filename
-    -- XXX Handle errors
-    let entry = fromJust mentry
--- XXX I think this is correct
-    mblob_id <- Git.treeEntryGetId entry
-    -- XXX Handle errors
-    let blob_id = fromJust mblob_id
+    commit_obj <- Git.repositoryLookupCommit repo commit_id >>= maybeThrow LookupCommitError
+    revert_tree <- Git.commitGetTree commit_obj >>= maybeThrow GetTreeError
+    entry <- Git.treeGetByName revert_tree filename >>= maybeThrow GetByNameError
+    blob_id <- Git.treeEntryGetId entry >>= maybeThrow GetEntryIdError
 
 -- vvv This could be a function, it's used in multiple places
-    mbranch <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal
-    -- XXX Handle errors
-    let branch_obj = fromJust mbranch
+    branch_obj <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal >>= maybeThrow LookupBranchError
     branch_id <- getBranchOIdFromObject repo branch_obj
-    -- get the parent commit for this branch: repositoryLookupCommit
-    mparent_commit <- Git.repositoryLookupCommit repo branch_id
-    -- XXX Handle errors
-    let parent_commit = fromJust mparent_commit
+    parent_commit <- Git.repositoryLookupCommit repo branch_id >>= maybeThrow LookupCommitError
 -- ^^^ This could be a function, it's used in multiple places
 
     -- Use treebuilder to modify the tree
-    mparent_tree <- Git.commitGetTree parent_commit
-    -- XXX Handle errors
-    let parent_tree = fromJust mparent_tree
-    builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree
+    parent_tree <- Git.commitGetTree parent_commit >>= maybeThrow GetTreeError
+    builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree >>= maybeThrow TreeBuilderError
 
     Git.treeBuilderInsert builder filename blob_id Git.FileModeBlob
-    tree_id <- Git.treeBuilderWrite builder
-    mtree <- Git.repositoryLookupTree repo tree_id
-    -- XXX Handle errors
-    let tree = fromJust mtree
+    tree_id <- Git.treeBuilderWrite builder >>= maybeThrow BuilderWriteError
+    tree <- Git.repositoryLookupTree repo tree_id >>= maybeThrow LookupTreeError
 
     -- Create a signature
-    sig <- Git.signatureNewNow "bdcs-cli" "user-email"
+    sig <- Git.signatureNewNow "bdcs-cli" "user-email" >>= maybeThrow NewSignatureError
 
     let ref = Just $ T.pack $ printf "refs/heads/%s" branch
     let encoding = Just "UTF-8"
 
-    mcommit <- Git.oIdToString commit_id
-    -- XXX Handle errors
-    let commit = fromJust mcommit
+    commit <- Git.oIdToString commit_id >>= maybeThrow OIdError
     let message = T.pack $ printf "Recipe %s reverted to commit %s" filename commit
 
     -- Create a new commit: repositoryCreateCommit
-    Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit]
+    Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit] >>= maybeThrow CreateCommitError
 
 -- | File commit details
 data CommitDetails =
@@ -379,9 +366,7 @@ data CommitDetails =
 
 listCommits :: Git.Repository -> T.Text -> T.Text -> IO [CommitDetails]
 listCommits repo branch filename = do
-    mrevwalk <- Git.revisionWalkerNew repo
-    -- XXX Handle errors
-    let revwalk = fromJust mrevwalk
+    revwalk <- Git.revisionWalkerNew repo >>= maybeThrow NewWalkerError
     Git.revisionWalkerSetSortMode revwalk [Git.SortModeTime, Git.SortModeReverse]
     let branch_ref = T.pack $ printf "refs/heads/%s" branch
     Git.revisionWalkerPushRef revwalk branch_ref
@@ -393,22 +378,16 @@ commitDetails :: Git.Repository -> Git.RevisionWalker -> T.Text -> T.Text -> [Co
 commitDetails _ _ _ _ details Nothing = return details
 commitDetails repo revwalk branch filename details next_id = do
     let commit_id = fromJust next_id
-    mcommit_obj <- Git.repositoryLookupCommit repo commit_id
-    -- XXX Handle errors
-    let commit_obj = fromJust mcommit_obj
+    commit_obj <- Git.repositoryLookupCommit repo commit_id >>= maybeThrow LookupCommitError
 
-    mparents <- Git.commitGetParents commit_obj
-    -- XXX Handle errors
-    let parents = fromJust mparents
+    parents <- Git.commitGetParents commit_obj >>= maybeThrow GetParentsError
     num_parents <- Git.commitParentsGetSize parents
 
-    mtree <- Git.commitGetTree commit_obj
-    -- XXX Handle errors
-    let tree = fromJust mtree
+    tree <- Git.commitGetTree commit_obj >>= maybeThrow GetTreeError
 
     is_diff <- if num_parents > 0
         then do
-            commits <- mapM (Git.commitParentsGet parents) [0..num_parents-1]
+            commits <- mapM (getCommitParent parents) [0..num_parents-1]
             allM (parentDiff repo filename tree) commits
         else
             return False
@@ -420,20 +399,21 @@ commitDetails repo revwalk branch filename details next_id = do
         else commitDetails repo revwalk branch filename details mnext_id
 
   where
+    getCommitParent :: Git.CommitParents -> Word32 -> IO Git.Commit
+    getCommitParent parents idx = Git.commitParentsGet parents idx >>= maybeThrow GetParentsError
+
     getCommitDetails :: Git.OId -> Git.Commit -> Maybe Git.OId -> IO [CommitDetails]
     getCommitDetails commit_id commit_obj mnext_id = do
         mtag <- findCommitTag repo branch filename commit_id
         let revision = getRevisionFromTag mtag
         -- Fill in a commit record
-        message <- Git.commitGetMessage commit_obj
-        mid <- Git.oIdToString commit_id
-        -- XXX How could that fail?
-        let commit_str = fromJust mid
-        sig <- Git.commitGetCommitter commit_obj
+        message <- Git.commitGetMessage commit_obj >>= maybeThrow GetMessageError
+        commit_str <- Git.oIdToString commit_id >>= maybeThrow OIdError
+        sig <- Git.commitGetCommitter commit_obj >>= maybeThrow GetCommitterError
 
         -- XXX No Idea How To Convert These Yet
-        datetime <- Git.signatureGetTime sig
-        timezone <- Git.signatureGetTimeZone sig
+        datetime <- Git.signatureGetTime sig >>= maybeThrow GetTimeError
+        timezone <- Git.signatureGetTimeZone sig >>= maybeThrow GetTimeZoneError
         -- What do you do with the TimeZone?
         timeval <- GLib.newZeroTimeVal
         ok <- GLib.dateTimeToTimeval datetime timeval
@@ -448,16 +428,11 @@ commitDetails repo revwalk branch filename details next_id = do
 -- Return True if there were changes, False otherwise
 parentDiff :: Git.Repository -> T.Text -> Git.Tree -> Git.Commit -> IO Bool
 parentDiff repo filename commit_tree parent_commit = do
-    mdiff_opts <- Git.diffOptionsNew
-    -- XXX Handle errors
-    let diff_opts = fromJust mdiff_opts
+    diff_opts <- Git.diffOptionsNew >>= maybeThrow NewOptionsError
     Git.diffOptionsSetPathspec diff_opts (Just [filename])
 
-    mparent_tree <- Git.commitGetTree parent_commit
-    -- XXX Handle errors
-    let parent_tree = fromJust mparent_tree
-    mdiff <- Git.diffNewTreeToTree repo (Just commit_tree) (Just parent_tree) (Just diff_opts)
-    let diff = fromJust mdiff
+    parent_tree <- Git.commitGetTree parent_commit >>= maybeThrow GetTreeError
+    diff <- Git.diffNewTreeToTree repo (Just commit_tree) (Just parent_tree) (Just diff_opts) >>= maybeThrow NewTreeError
     num_deltas <- Git.diffGetNumDeltas diff
     if num_deltas > 0
     then return True
@@ -491,19 +466,10 @@ findCommitTag repo branch filename commit_id = do
         -- Find the commit for this tag and check that it matches commit_id
         -- If so, return the branch/filename/r* part of the tag
         let ref_tag = T.pack $ printf "refs/tags/%s" tag
-        -- XXX This dumb thing will throw an exception if the reference is wrong
-        mref <- Git.repositoryLookupReference repo ref_tag
-        -- XXX Handle errors
-        let ref = fromJust mref
-        mtag_oid <- Git.refGetTarget ref
-        -- XXX Handle errors
-        let tag_oid = fromJust mtag_oid
-        mtag_obj <- Git.repositoryLookupTag repo tag_oid
-        -- XXX Handle errors
-        let tag_obj = fromJust mtag_obj
-        moid <- Git.tagGetTargetId tag_obj
-        -- XXX Handle errors
-        let oid = fromJust moid
+        ref <- Git.repositoryLookupReference repo ref_tag >>= maybeThrow LookupReferenceError
+        tag_oid <- Git.refGetTarget ref >>= maybeThrow GetTargetError
+        tag_obj <- Git.repositoryLookupTag repo tag_oid >>= maybeThrow LookupTagError
+        oid <- Git.tagGetTargetId tag_obj >>= maybeThrow GetTargetIdError
 
         cmp <- Git.oIdCompare oid commit_id
         if cmp == 0
@@ -551,13 +517,10 @@ tagFileCommit repo branch filename = do
                   else 1
 
         let name = T.pack $ printf "%s/%s/r%d" branch filename rev
-        sig <- Git.signatureNewNow "bdcs-cli" "user-email"
-        mcommit_id <- Git.oIdNewFromString (cdCommit last_commit)
-        -- XXX Handle errors
-        let commit_id = fromJust mcommit_id
-        -- XXX don't know how to create a GType here...
+        sig <- Git.signatureNewNow "bdcs-cli" "user-email" >>= maybeThrow NewSignatureError
+        commit_id <- Git.oIdNewFromString (cdCommit last_commit) >>= maybeThrow NewOIdError
         commit_type <- gobjectType (undefined :: Git.Commit)
-        commit_obj <- Git.repositoryLookup repo commit_id commit_type
+        commit_obj <- Git.repositoryLookup repo commit_id commit_type >>= maybeThrow LookupError
         mtag_id <- Git.repositoryCreateTag repo name commit_obj sig name [Git.CreateFlagsNone]
         if isJust mtag_id
             then return True

@@ -17,16 +17,22 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module BDCSCli.Utilities(argify,
-                         maybeIO)
+                         maybeIO,
+                         maybeThrow)
   where
 
-import qualified Control.Exception as E
-import Control.Monad (liftM)
-import Data.List.Split (splitOn)
+import           Control.Exception
+import           Control.Monad (liftM)
+import           Data.List.Split (splitOn)
 
 -- | Turn exceptions from an action into Nothing
 maybeIO :: IO a -> IO (Maybe a)
-maybeIO act = E.handle (\(_::E.SomeException) -> (return Nothing)) (Just `liftM` act)
+maybeIO act = handle (\(_::SomeException) -> (return Nothing)) (Just `liftM` act)
+
+-- | Throw an IO error when a Maybe is Nothing
+maybeThrow :: (Exception e) => e -> Maybe a -> IO a
+maybeThrow err Nothing = throwIO err
+maybeThrow _ (Just v)  = return v
 
 -- | Take a list of possiby comma, or comma-space, separated options and turn it into a list of options
 argify :: Foldable t => t String -> [String]
