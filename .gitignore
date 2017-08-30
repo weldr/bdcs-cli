@@ -2,3 +2,8 @@
 cabal.sandbox.config
 dist
 .*.swp
+*.tix
+*.sql
+*.db
+export
+import
