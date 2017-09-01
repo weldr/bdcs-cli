@@ -18,7 +18,27 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 module BDCSCli.Recipe(parseRecipe,
-                      doGitTests)
+                      recipeTOML,
+                      recipeTomlFilename,
+                      recipeBumpVersion,
+                      openOrCreateRepo,
+                      findOrCreateBranch,
+                      getBranchOIdFromObject,
+                      writeCommit,
+                      readCommit,
+                      readCommitSpec,
+                      listBranchFiles,
+                      listCommitFiles,
+                      deleteFile,
+                      revertFile,
+                      revertFileCommit,
+                      listCommits,
+                      findCommitTag,
+                      getRevisionFromTag,
+                      tagFileCommit,
+                      commitRecipeFile,
+                      commitRecipe,
+                      commitRecipeDirectory)
   where
 
 import           Control.Conditional(ifM)
