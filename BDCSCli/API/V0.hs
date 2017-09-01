@@ -144,7 +144,7 @@ data Recipe =
            , rDescription       :: String
            , rPackages          :: [RecipeModule]
            , rModules           :: [RecipeModule]
-    } deriving Show
+    } deriving (Eq, Show)
 
 instance FromJSON Recipe where
   parseJSON = withObject "recipe" $ \o -> do
@@ -167,7 +167,7 @@ instance ToJSON Recipe where
 data RecipeModule =
     RecipeModule { rmName         :: String
                  , rmVersion      :: String
-    } deriving Show
+    } deriving (Eq, Show)
 
 instance FromJSON RecipeModule where
   parseJSON = withObject "recipe module" $ \o -> do

@@ -38,12 +38,15 @@ module BDCSCli.Recipe(parseRecipe,
                       tagFileCommit,
                       commitRecipeFile,
                       commitRecipe,
-                      commitRecipeDirectory)
+                      commitRecipeDirectory,
+                      Recipe(..),
+                      RecipeModule(..),
+                      runGitRepoTests)
   where
 
 import           Control.Conditional(ifM)
 import           Control.Exception
-import           Control.Monad(filterM)
+import           Control.Monad(filterM, unless)
 import           Control.Monad.Loops(allM)
 import           Data.Aeson(toJSON, fromJSON)
 import           Data.Aeson.Types(Result(..))
@@ -59,6 +62,7 @@ import           GI.Gio
 import qualified GI.Ggit as Git
 import qualified GI.GLib as GLib
 import           System.Directory(doesPathExist, listDirectory)
+import           System.IO.Temp(withTempDirectory)
 import           Text.Printf(printf)
 import           Text.Read(readMaybe)
 import           Text.Toml(parseTomlDoc)
@@ -180,7 +184,7 @@ recipeBumpVersion (Just prev_ver) (Just new_ver)
 openOrCreateRepo :: FilePath -> IO Git.Repository
 openOrCreateRepo path = do
     gfile <- fileNewForPath path
-    ifM (doesPathExist path)
+    ifM (doesPathExist $ path ++ "/.git")
         (openRepo gfile)
         (createWithInitialCommit gfile)
   where
@@ -599,48 +603,102 @@ printOId oid = do
     moid_str <- Git.oIdToString oid
     print moid_str
 
--- | Test out git functions
-doGitTests :: FilePath -> IO ()
-doGitTests path = do
-    -- Move this elsewhere later, MUST be called first
+
+
+
+-- =========================
+-- Test Functions Below Here
+-- =========================
+testRecipe :: Recipe
+testRecipe =
+    Recipe {rName = "test-server",
+            rVersion = Just "0.1.2",
+            rDescription = "Testing git commit of a Recipe record",
+            rPackages = [RecipeModule {rmName = "tmux", rmVersion = "2.2"},
+                         RecipeModule {rmName = "openssh-server", rmVersion = "6.6.*"},
+                         RecipeModule {rmName = "rsync", rmVersion = "3.0.*"}],
+            rModules = [RecipeModule {rmName = "httpd", rmVersion = "2.4.*"},
+                        RecipeModule {rmName = "mod_auth_kerb", rmVersion = "5.4"},
+                        RecipeModule {rmName = "mod_ssl", rmVersion = "2.4.*"},
+                        RecipeModule {rmName = "php", rmVersion = "5.4.*"},
+                        RecipeModule {rmName = "php-mysql", rmVersion = "5.4.*"}]
+    }
+
+testFiles :: [T.Text]
+testFiles  = ["glusterfs.toml","http-server.toml","kubernetes.toml","test-server.toml"]
+testFiles2 :: [T.Text]
+testFiles2 = ["glusterfs.toml","kubernetes.toml","test-server.toml"]
+
+data TestError =
+    FileListError [T.Text]
+  | ListCommitsError
+  | HttpCommitError [CommitDetails]
+  | TagCommitError
+  | CommitRevisionError [CommitDetails]
+  deriving (Eq, Show)
+
+instance Exception TestError
+
+runGitRepoTests :: IO Bool
+runGitRepoTests = withTempDirectory "/var/tmp/" "bdcsgit-test" testGitRepo
+
+testGitRepo :: FilePath -> IO Bool
+testGitRepo tmpdir = do
     Git.init
-    repo <- openOrCreateRepo path
--- WORKS
-    commit_id <- writeCommit repo "master" "README" "A test commit\n\nWith some commentary." "Some Content"
-    commit_id <- writeCommit repo "master" "README" "A test commit 2\n\nWith some other commentary." "Some Content #2"
-    commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some stuff to do." "Some Content"
-    commit_id <- writeCommit repo "master" "TODO" "A todo commit\n\nWith some commentary." "Some other Content"
+    repo <- openOrCreateRepo tmpdir
 
+    -- Commit a file to the repo
+    putStrLn "    - Committing http-server.toml"
+    commitRecipeFile repo "master" "./tests/recipes/http-server.toml"
+
+    -- Commit a directory to the repo
+    putStrLn "    - Committing a directory of recipes"
+    commitRecipeDirectory repo "master" "./tests/recipes/"
+
+    -- Commit a Recipe record to the repo
+    putStrLn "    - Committing a Recipe record"
+    commitRecipe repo "master" testRecipe
+
+    -- List the files on master
+    putStrLn "    - Listing the committed files"
     files <- listBranchFiles repo "master"
-    print files
+    unless (files == testFiles) (throwIO $ FileListError files)
 
-    commit_id <- writeCommit repo "master" "FRODO" "A list of stuff to be accomplished\n\nFind a magic ring" "Some other Content"
-    files <- listBranchFiles repo "master"
-    print files
+    -- Get the commits to http-server.toml
+    putStrLn "    - List commits to http-server.toml"
+    http_commits <- listCommits repo "master" "http-server.toml"
+    -- Should be 1 commit
+    let expected_msg_1 = "Recipe http-server.toml, version 0.2.0 saved"
+    let msg_1 = cdMessage (head http_commits)
+    unless (msg_1 == expected_msg_1) (throwIO $ HttpCommitError http_commits)
 
-    deleteFile repo "master" "FRODO"
+    -- delete http-server.toml file
+    putStrLn "    - Delete the http-server.toml file"
+    deleteFile repo "master" "http-server.toml"
 
-    files <- listBranchFiles repo "master"
-    print files
+    -- List the files on master
+    putStrLn "    - Check that http-server.toml has been deleted"
+    files2 <- listBranchFiles repo "master"
+    unless (files2 == testFiles2) (throwIO $ FileListError files2)
 
     -- Revert the delete
-    revertFileCommit repo "master" "FRODO" commit_id
+    commit_id <- Git.oIdNewFromString (cdCommit $ head http_commits) >>= maybeThrow NewOIdError
+    revertFileCommit repo "master" "http-server.toml" commit_id
 
-    files <- listBranchFiles repo "master"
-    print files
+    -- List the files on master
+    putStrLn "    - Check that http-server.toml has been restored"
+    files3 <- listBranchFiles repo "master"
+    unless (files3 == testFiles) (throwIO $ FileListError files3)
 
-    commits <- listCommits repo "master" "FRODO"
-    print commits
+    -- tag a commit
+    putStrLn "    - Tag most recent commit of http-server.toml"
+    ok <- tagFileCommit repo "master" "http-server.toml"
+    unless ok (throwIO TagCommitError)
 
-    commits <- listCommits repo "master" "TODO"
-    print commits
+    -- list the commits and check for the tag
+    putStrLn "    - Check the Tag"
+    commits <- listCommits repo "master" "http-server.toml"
+    let revision = cdRevision (head commits)
+    unless (revision == Just 1) (throwIO $ CommitRevisionError commits)
 
-    -- First is True, 2nd is False (because there are no new commits)
-    ok <- tagFileCommit repo "master" "FRODO"
-    print ok
-    ok <- tagFileCommit repo "master" "FRODO"
-    print ok
-
-    commitRecipeDirectory repo "master" "/home/bcl/tmp/recipes/"
-
-    return ()
+    return True
