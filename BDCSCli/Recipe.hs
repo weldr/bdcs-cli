@@ -180,6 +180,23 @@ recipeBumpVersion (Just prev_ver) (Just new_ver)
             Right _ -> Right new_ver
             Left  _ -> Left ("Failed to parse version: " ++ new_ver)
 
+-- | Get the branch's HEAD Commit
+headCommit :: Git.Repository -> T.Text -> IO Git.Commit
+headCommit repo branch = do
+    branch_obj <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal >>= maybeThrow LookupBranchError
+    branch_id <- getBranchOIdFromObject repo branch_obj
+    Git.repositoryLookupCommit repo branch_id >>= maybeThrow LookupCommitError
+
+-- | Prepare for a commit
+prepareCommit :: Git.Repository -> T.Text -> Git.TreeBuilder -> IO (Git.Tree, Git.Signature, Maybe T.Text, Maybe T.Text)
+prepareCommit repo branch builder = do
+    tree_id <- Git.treeBuilderWrite builder >>= maybeThrow BuilderWriteError
+    tree <- Git.repositoryLookupTree repo tree_id >>= maybeThrow LookupTreeError
+    sig <- Git.signatureNewNow "bdcs-cli" "user-email" >>= maybeThrow NewSignatureError
+    let ref = Just $ T.pack $ printf "refs/heads/%s" branch
+    let encoding = Just "UTF-8"
+    return (tree, sig, ref, encoding)
+
 -- | Open a Git repository, or create the initial repository if one doesn't exist
 openOrCreateRepo :: FilePath -> IO Git.Repository
 openOrCreateRepo path = do
@@ -226,27 +243,14 @@ getBranchOIdFromObject repo branch_obj = do
 -- | Make a new commit to a repository's branch
 writeCommit :: Git.Repository -> T.Text -> T.Text -> T.Text -> BS.ByteString -> IO Git.OId
 writeCommit repo branch filename message content = do
-    -- does the branch exist? If so get its OId: repositoryLookupBranch
-    -- If it does not, create it and get its OId: repositoryCreateBranch
-    branch_obj <- findOrCreateBranch repo branch
-    branch_id <- getBranchOIdFromObject repo branch_obj
-    parent_commit <- Git.repositoryLookupCommit repo branch_id >>= maybeThrow LookupCommitError
+    parent_commit <- headCommit repo branch
     blob_id <- Git.repositoryCreateBlobFromBuffer repo content >>= maybeThrow CreateBlobError
 
     -- Use treebuilder to make a new entry for this filename and blob: repositoryCreateTreeBuilderFromTree
     parent_tree <- Git.commitGetTree parent_commit >>= maybeThrow GetTreeError
     builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree >>= maybeThrow TreeBuilderError
     Git.treeBuilderInsert builder filename blob_id Git.FileModeBlob >>= maybeThrow BuilderInsertError
-    tree_id <- Git.treeBuilderWrite builder >>= maybeThrow BuilderWriteError
-    tree <- Git.repositoryLookupTree repo tree_id >>= maybeThrow LookupTreeError
-
-    -- Create a signature
-    sig <- Git.signatureNewNow "bdcs-cli" "user-email" >>= maybeThrow NewSignatureError
-
-    let ref = Just $ T.pack $ printf "refs/heads/%s" branch
-    let encoding = Just "UTF-8"
-
-    -- Create a new commit: repositoryCreateCommit
+    (tree, sig, ref, encoding) <- prepareCommit repo branch builder
     Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit] >>= maybeThrow CreateCommitError
 
 -- | Read a commit and return a ByteString of the content
@@ -304,10 +308,7 @@ getFilenames' tree filenames idx = do
 -- | List the files on a branch
 listBranchFiles :: Git.Repository -> T.Text -> IO [T.Text]
 listBranchFiles repo branch = do
-    branch_obj <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal >>= maybeThrow LookupBranchError
-    branch_id <- getBranchOIdFromObject repo branch_obj
-    -- get the parent commit for this branch: repositoryLookupCommit
-    parent_commit <- Git.repositoryLookupCommit repo branch_id >>= maybeThrow LookupCommitError
+    parent_commit <- headCommit repo branch
     listCommitFiles repo parent_commit
 
 -- | List the files in a commit
@@ -320,26 +321,14 @@ listCommitFiles repo commit = do
 
 deleteFile :: Git.Repository -> T.Text -> T.Text -> IO Git.OId
 deleteFile repo branch filename = do
-    branch_obj <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal >>= maybeThrow LookupBranchError
-    branch_id <- getBranchOIdFromObject repo branch_obj
-    parent_commit <- Git.repositoryLookupCommit repo branch_id >>= maybeThrow LookupCommitError
+    parent_commit <- headCommit repo branch
 
     -- Use treebuilder to modify the tree
     parent_tree <- Git.commitGetTree parent_commit >>= maybeThrow GetTreeError
     builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree >>= maybeThrow TreeBuilderError
     Git.treeBuilderRemove builder filename
-    tree_id <- Git.treeBuilderWrite builder >>= maybeThrow BuilderWriteError
-    tree <- Git.repositoryLookupTree repo tree_id >>= maybeThrow LookupTreeError
-
-    -- Create a signature
-    sig <- Git.signatureNewNow "bdcs-cli" "user-email" >>= maybeThrow NewSignatureError
-
-    let ref = Just $ T.pack $ printf "refs/heads/%s" branch
-    let encoding = Just "UTF-8"
-
+    (tree, sig, ref, encoding) <- prepareCommit repo branch builder
     let message = T.pack $ printf "Recipe %s deleted" filename
-
-    -- Create a new commit: repositoryCreateCommit
     Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit] >>= maybeThrow  CreateCommitError
 
 revertFile :: Git.Repository -> T.Text -> T.Text -> T.Text -> IO Git.OId
@@ -353,31 +342,15 @@ revertFileCommit repo branch filename commit_id = do
     revert_tree <- Git.commitGetTree commit_obj >>= maybeThrow GetTreeError
     entry <- Git.treeGetByName revert_tree filename >>= maybeThrow GetByNameError
     blob_id <- Git.treeEntryGetId entry >>= maybeThrow GetEntryIdError
-
--- vvv This could be a function, it's used in multiple places
-    branch_obj <- Git.repositoryLookupBranch repo branch Git.BranchTypeLocal >>= maybeThrow LookupBranchError
-    branch_id <- getBranchOIdFromObject repo branch_obj
-    parent_commit <- Git.repositoryLookupCommit repo branch_id >>= maybeThrow LookupCommitError
--- ^^^ This could be a function, it's used in multiple places
+    parent_commit <- headCommit repo branch
 
     -- Use treebuilder to modify the tree
     parent_tree <- Git.commitGetTree parent_commit >>= maybeThrow GetTreeError
     builder <- Git.repositoryCreateTreeBuilderFromTree repo parent_tree >>= maybeThrow TreeBuilderError
-
     Git.treeBuilderInsert builder filename blob_id Git.FileModeBlob
-    tree_id <- Git.treeBuilderWrite builder >>= maybeThrow BuilderWriteError
-    tree <- Git.repositoryLookupTree repo tree_id >>= maybeThrow LookupTreeError
-
-    -- Create a signature
-    sig <- Git.signatureNewNow "bdcs-cli" "user-email" >>= maybeThrow NewSignatureError
-
-    let ref = Just $ T.pack $ printf "refs/heads/%s" branch
-    let encoding = Just "UTF-8"
-
+    (tree, sig, ref, encoding) <- prepareCommit repo branch builder
     commit <- Git.oIdToString commit_id >>= maybeThrow OIdError
     let message = T.pack $ printf "Recipe %s reverted to commit %s" filename commit
-
-    -- Create a new commit: repositoryCreateCommit
     Git.repositoryCreateCommit repo ref sig sig encoding message tree [parent_commit] >>= maybeThrow CreateCommitError
 
 -- | File commit details
