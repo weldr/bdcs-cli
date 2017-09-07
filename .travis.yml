@@ -18,28 +18,36 @@ before_install:
   - travis_retry cabal update && cabal install hlint hpc-coveralls
 
 script:
-  - ~/.cabal/bin/hlint .
-  - cabal install --dependencies-only --enable-tests --force-reinstalls
-  - cabal configure --enable-tests --enable-coverage --ghc-option=-DTEST
-  - cabal build
-  - cabal test --show-details=always
+  - |
+    if [ "$TRAVIS_EVENT_TYPE" == "cron" ]; then
+        ./tests/test_images.sh
+    else
+        ~/.cabal/bin/hlint .
+        cabal install --dependencies-only --enable-tests --force-reinstalls
+        cabal configure --enable-tests --enable-coverage --ghc-option=-DTEST
+        cabal build
+        cabal test --show-details=always
 
-  # tests for bdcs-cli binary
-  - ./tests/test_binary.sh
-  # depsolve integration tests
-  - ./tests/test_depsolve.sh
+        # tests for bdcs-cli binary
+        ./tests/test_binary.sh
+        # depsolve integration tests
+        ./tests/test_depsolve.sh
 
-  # collect binary coverage
-  - mkdir ./dist/hpc/vanilla/tix/bdcs-cli/
-  - mv bdcs-cli.tix ./dist/hpc/vanilla/tix/bdcs-cli/
+        # collect binary coverage
+        mkdir ./dist/hpc/vanilla/tix/bdcs-cli/
+        mv bdcs-cli.tix ./dist/hpc/vanilla/tix/bdcs-cli/
+    fi
 
 after_success:
-  - ~/.cabal/bin/hpc-coveralls --display-report spec bdcs-cli
   - |
+    if [ "$TRAVIS_EVENT_TYPE" != "cron" ]; then
+        ~/.cabal/bin/hpc-coveralls --display-report spec bdcs-cli
+
         if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
             s3cmd sync --access_key="$ARTIFACTS_KEY" --secret_key="$ARTIFACTS_SECRET" \
                         -v -P ./dist/build/bdcs-cli/bdcs-cli s3://weldr/bdcs-cli
         fi
+    fi
 
 notifications:
   email:
