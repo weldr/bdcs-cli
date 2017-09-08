@@ -11,7 +11,7 @@ cache:
 
 before_install:
   - sudo docker pull welder/bdcs-api-rs:latest
-  - pip install s3cmd toml parameterized
+  - sudo pip install s3cmd toml parameterized
   - wget --progress=dot:giga https://haskell.org/platform/download/8.0.2/haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
   - tar -xzvf ./haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
   - sudo ./install-haskell-platform.sh
