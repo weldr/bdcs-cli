@@ -102,23 +102,19 @@ recipesCommand ctx ("list":_) = listRecipes ctx >>= \r -> do
 
 -- | Process the recipes show command
 -- Print the TOML recipe
-recipesCommand ctx ("show":xs) = showRecipe $ argify xs
+recipesCommand ctx ("show":xs) = mapM_ showRecipe $ argify xs
   where
-    showRecipe (x:xxs) = infoRecipes ctx x >>= \r -> do
+    showRecipe x = infoRecipes ctx x >>= \r ->
         -- TODO This needs to check for JSON output selection...
         putStrLn $ C8.unpack $ fromJust r ^. responseBody
-        showRecipe xxs
-    showRecipe [] = putStrLn ""
 
 -- | Process the recipes save command
 -- Save a copy of the recipe to a TOML file using <recipe name>.toml
-recipesCommand ctx ("save":xs) = saveRecipe $ argify xs
+recipesCommand ctx ("save":xs) = mapM_ saveRecipe $ argify xs
   where
-    saveRecipe (x:xxs) = infoRecipes ctx x >>= \r -> do
+    saveRecipe x = infoRecipes ctx x >>= \r ->
         -- TODO This needs to check for JSON output selection and save it as a .json file instead
         writeFile (tomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
-        saveRecipe xxs
-    saveRecipe [] = putStrLn ""         -- How to do a 'pass' here?
 
 -- | Process the recipe depsolve command
 -- Print the list of package versions needed for the recipe list
@@ -132,37 +128,31 @@ recipesCommand ctx ("depsolve":xs) = depsolveRecipes ctx (intercalate "," xs) >>
 
 -- | Process the recipes push command
 -- Create a new recipe on the server, or overwrite an existing one, with a TOML recipe file
-recipesCommand ctx ("push":xs) = pushRecipe $ argify xs
+recipesCommand ctx ("push":xs) = mapM_ pushRecipe $ argify xs
   where
-    pushRecipe (name:xxs) = do
+    pushRecipe name = do
         unlessM (doesFileExist name) $ do
             putStrLn $ printf "ERROR: Missing file %s" name
             exitFailure
         toml <- readFile name
         newRecipes ctx toml
-        pushRecipe xxs
-    pushRecipe [] = putStrLn ""         -- How to do a 'pass' here?
 recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
 recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"
 
 -- | Process the recipes freeze show command
 -- Show the frozen recipe in TOML format
 recipesFreeze :: CommandCtx -> [String] -> IO ()
-recipesFreeze ctx ("show":xs) = showFrozenRecipe $ argify xs
+recipesFreeze ctx ("show":xs) = mapM_ showFrozenRecipe $ argify xs
   where
-    showFrozenRecipe (x:xxs) = freezeRecipeToml ctx x >>= \r -> do
+    showFrozenRecipe x = freezeRecipeToml ctx x >>= \r -> 
         putStrLn $ C8.unpack $ fromJust r ^. responseBody
-        showFrozenRecipe xxs
-    showFrozenRecipe [] = putStrLn ""
 
 -- | Process the recipes freeze show command
 -- Save the frozen recipe in TOML format, as <recipe name>.frozen.toml
-recipesFreeze ctx ("save":xs) = saveFrozenRecipe $ argify xs
+recipesFreeze ctx ("save":xs) = mapM_ saveFrozenRecipe $ argify xs
   where
-    saveFrozenRecipe (x:xxs) = freezeRecipeToml ctx x >>= \r -> do
+    saveFrozenRecipe x = freezeRecipeToml ctx x >>= \r -> do
         writeFile (frozenTomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
-        saveFrozenRecipe xxs
-    saveFrozenRecipe [] = putStrLn ""         -- How to do a 'pass' here?
 
 -- | Process the recipes freeze
 -- Display the recipes' frozen module and packages list in human readable format
