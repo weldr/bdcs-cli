@@ -57,6 +57,7 @@ import           Data.List(elemIndices, isSuffixOf)
 import           Data.Maybe(fromJust, fromMaybe, isJust)
 import qualified Data.SemVer as SV
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import           Data.Text.Encoding(encodeUtf8)
 import           Data.Word(Word32)
 import           GI.Gio
@@ -528,8 +529,8 @@ tagFileCommit repo branch filename = do
 -- | Read and parse a recipe file
 commitRecipeFile :: Git.Repository -> T.Text -> FilePath -> IO Git.OId
 commitRecipeFile repo branch filename = do
-    toml_in <- readFile filename
-    let erecipe = parseRecipe (T.pack toml_in)
+    toml_in <- TIO.readFile filename
+    let erecipe = parseRecipe toml_in
     -- XXX Handle errors
     let recipe = head $ rights [erecipe]
     commitRecipe repo branch recipe
