@@ -134,8 +134,7 @@ recipesCommand ctx ("depsolve":xs) = depsolveRecipes ctx (intercalate "," xs) >>
 -- Create a new recipe on the server, or overwrite an existing one, with a TOML recipe file
 recipesCommand ctx ("push":xs) = pushRecipe $ argify xs
   where
-    pushRecipe (x:xxs) = do
-        let name = x
+    pushRecipe (name:xxs) = do
         unlessM (doesFileExist name) $ do
             putStrLn $ printf "ERROR: Missing file %s" name
             exitFailure
