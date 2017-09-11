@@ -304,9 +304,8 @@ getFilenames' tree filenames idx = getFilename tree (idx-1) >>= \case
 
 -- | List the files on a branch
 listBranchFiles :: Git.Repository -> T.Text -> IO [T.Text]
-listBranchFiles repo branch = do
-    parent_commit <- headCommit repo branch
-    listCommitFiles repo parent_commit
+listBranchFiles repo branch =
+    headCommit repo branch >>= listCommitFiles repo
 
 -- | List the files in a commit
 listCommitFiles :: Git.Repository -> Git.Commit -> IO [T.Text]
@@ -442,9 +441,8 @@ findCommitTag repo branch filename commit_id = do
         Just tags  -> filterTags tags
         Nothing    -> return Nothing
   where
-    filterTags tags = do
-        commit_tags <- filterM isCommitTag tags
-        return $ maybeOneTag commit_tags
+    filterTags tags =
+        maybeOneTag <$> filterM isCommitTag tags
 
     maybeOneTag :: [T.Text] -> Maybe T.Text
     maybeOneTag []    = Nothing
@@ -562,9 +560,8 @@ commitRecipeDirectory repo branch directory = do
     skipFiles branch_files file = T.pack file `notElem` branch_files && ".toml" `isSuffixOf` file
 
 printOId :: Git.OId -> IO ()
-printOId oid = do
-    moid_str <- Git.oIdToString oid
-    print moid_str
+printOId oid =
+    Git.oIdToString oid >>= print
 
 
 

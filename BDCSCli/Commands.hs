@@ -73,12 +73,10 @@ composeCommand _ ("types":_) =
     putStrLn "tar"
 
 composeCommand _   ["tar"]          = putStrLn "ERROR: Missing recipe name"
-composeCommand ctx ("tar":recipe:_) = do
-    r <- depsolveRecipes ctx recipe
-    when (isJust r) $ do
-        let deps = decodeDepsolve $ fromJust r
---        when (isJust deps) $ composeTar opts $ fromJust deps
-        forM_ deps composeTar
+composeCommand ctx ("tar":recipe:_) = depsolveRecipes ctx recipe >>= \r -> do
+    let deps = decodeDepsolve $ fromJust r
+--    when (isJust deps) $ composeTar opts $ fromJust deps
+    forM_ deps composeTar
   where
     composeTar deps = withSystemTempFile "bdcs-deps-" $ \tmpFile hFile -> do
         -- write deps to tmpFile
@@ -96,22 +94,19 @@ composeCommand _    _      = putStrLn "ERROR: Unknown compose type"
 -- | Process the recipes list command
 -- Prints a JSON or human reable list of available recipes
 recipesCommand :: CommandCtx -> [String] -> IO ()
-recipesCommand ctx ("list":_) = do
-    r <- listRecipes ctx
-    when (isJust r) $ do
-        j <- asValue $ fromJust r
-        if optJsonOutput $ ctxOptions ctx
-            then putStrLn $ prettyJson $ j ^. responseBody
-            else putStrLn $ "Recipes: " ++ humanRecipesList j
+recipesCommand ctx ("list":_) = listRecipes ctx >>= \r -> do
+    j <- asValue $ fromJust r
+    if optJsonOutput $ ctxOptions ctx
+        then putStrLn $ prettyJson $ j ^. responseBody
+        else putStrLn $ "Recipes: " ++ humanRecipesList j
 
 -- | Process the recipes show command
 -- Print the TOML recipe
 recipesCommand ctx ("show":xs) = showRecipe $ argify xs
   where
-    showRecipe (x:xxs) = do
-        r <- infoRecipes ctx x
+    showRecipe (x:xxs) = infoRecipes ctx x >>= \r -> do
         -- TODO This needs to check for JSON output selection...
-        when (isJust r) $ putStrLn $ C8.unpack $ fromJust r ^. responseBody
+        putStrLn $ C8.unpack $ fromJust r ^. responseBody
         showRecipe xxs
     showRecipe [] = putStrLn ""
 
@@ -119,24 +114,21 @@ recipesCommand ctx ("show":xs) = showRecipe $ argify xs
 -- Save a copy of the recipe to a TOML file using <recipe name>.toml
 recipesCommand ctx ("save":xs) = saveRecipe $ argify xs
   where
-    saveRecipe (x:xxs) = do
-        r <- infoRecipes ctx x
+    saveRecipe (x:xxs) = infoRecipes ctx x >>= \r -> do
         -- TODO This needs to check for JSON output selection and save it as a .json file instead
-        when (isJust r) $ writeFile (tomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
+        writeFile (tomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
         saveRecipe xxs
     saveRecipe [] = putStrLn ""         -- How to do a 'pass' here?
 
 -- | Process the recipe depsolve command
 -- Print the list of package versions needed for the recipe list
-recipesCommand ctx ("depsolve":xs) = do
-    r <- depsolveRecipes ctx (intercalate "," xs)
-    when (isJust r) $ do
-        j <- asValue $ fromJust r
-        if optJsonOutput $ ctxOptions ctx
-            then putStrLn $ prettyJson $ j ^. responseBody
-            else do
-                let deps = decodeDepsolve $ fromJust r
-                when (isJust deps) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesDepsList $ fromJust deps
+recipesCommand ctx ("depsolve":xs) = depsolveRecipes ctx (intercalate "," xs) >>= \r -> do
+    j <- asValue $ fromJust r
+    if optJsonOutput $ ctxOptions ctx
+        then putStrLn $ prettyJson $ j ^. responseBody
+        else do
+            let deps = decodeDepsolve $ fromJust r
+            when (isJust deps) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesDepsList $ fromJust deps
 
 -- | Process the recipes push command
 -- Create a new recipe on the server, or overwrite an existing one, with a TOML recipe file
@@ -159,9 +151,8 @@ recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"
 recipesFreeze :: CommandCtx -> [String] -> IO ()
 recipesFreeze ctx ("show":xs) = showFrozenRecipe $ argify xs
   where
-    showFrozenRecipe (x:xxs) = do
-        r <- freezeRecipeToml ctx x
-        when (isJust r) $ putStrLn $ C8.unpack $ fromJust r ^. responseBody
+    showFrozenRecipe (x:xxs) = freezeRecipeToml ctx x >>= \r -> do
+        putStrLn $ C8.unpack $ fromJust r ^. responseBody
         showFrozenRecipe xxs
     showFrozenRecipe [] = putStrLn ""
 
@@ -169,45 +160,36 @@ recipesFreeze ctx ("show":xs) = showFrozenRecipe $ argify xs
 -- Save the frozen recipe in TOML format, as <recipe name>.frozen.toml
 recipesFreeze ctx ("save":xs) = saveFrozenRecipe $ argify xs
   where
-    saveFrozenRecipe (x:xxs) = do
-        r <- freezeRecipeToml ctx x
-        when (isJust r) $ writeFile (frozenTomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
+    saveFrozenRecipe (x:xxs) = freezeRecipeToml ctx x >>= \r -> do
+        writeFile (frozenTomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
         saveFrozenRecipe xxs
     saveFrozenRecipe [] = putStrLn ""         -- How to do a 'pass' here?
 
 -- | Process the recipes freeze
 -- Display the recipes' frozen module and packages list in human readable format
-recipesFreeze ctx xs = do
-    r <- freezeRecipes ctx (intercalate "," xs)
-    when (isJust r) $ do
-        let recipes = decodeFreeze $ fromJust r
-        when (isJust recipes) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesFrozenList $ fromJust recipes
+recipesFreeze ctx xs = freezeRecipes ctx (intercalate "," xs) >>= \r -> do
+    let recipes = decodeFreeze $ fromJust r
+    when (isJust recipes) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesFrozenList $ fromJust recipes
 
 
 -- | Process the modules list command
 -- Print a list of the available modules
 modulesCommand :: CommandCtx -> [String] -> IO ()
-modulesCommand ctx ("list":_)    = do
-    r <- listModules ctx
-    when (isJust r) $ do
-        j <- asValue $ fromJust r
-        putStrLn $ prettyJson $ j ^. responseBody
+modulesCommand ctx ("list":_) = listModules ctx >>= \r -> do
+    j <- asValue $ fromJust r
+    putStrLn $ prettyJson $ j ^. responseBody
 modulesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown modules command - %s" x
 modulesCommand _    _     = putStrLn "ERROR: Missing modules command"
 
 -- | Process the projects list command
 -- Print a list of the available projects
 projectsCommand :: CommandCtx -> [String] -> IO ()
-projectsCommand ctx ("list":_)    = do
-    r <- listProjects ctx
-    when (isJust r) $ do
-        j <- asValue $ fromJust r
-        putStrLn $ prettyJson $ j ^. responseBody
-projectsCommand ctx ("info":xs) = do
-    r <- infoProjects ctx (intercalate "," xs)
-    when (isJust r) $ do
-        j <- asValue $ fromJust r
-        putStrLn $ prettyJson $ j ^. responseBody
+projectsCommand ctx ("list":_)    = listProjects ctx >>= \r -> do
+    j <- asValue $ fromJust r
+    putStrLn $ prettyJson $ j ^. responseBody
+projectsCommand ctx ("info":xs) = infoProjects ctx (intercalate "," xs) >>= \r -> do
+    j <- asValue $ fromJust r
+    putStrLn $ prettyJson $ j ^. responseBody
 projectsCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown projects command - %s" x
 projectsCommand _    _     = putStrLn "ERROR: Missing projects command"
 
