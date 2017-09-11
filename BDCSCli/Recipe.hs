@@ -278,12 +278,9 @@ getFilename tree idx = do
     entry <- Git.treeGet tree idx >>= maybeThrow GetTreeError
 
     -- Only allow Blob and BlobExecutable
-    isBlob <- isFileBlob entry
-    if isBlob
-        then do
-            name <- Git.treeEntryGetName entry >>= maybeThrow GetNameError
-            return $ Just name
-        else return Nothing
+    ifM (isFileBlob entry)
+        (Just <$> Git.treeEntryGetName entry >>= maybeThrow GetNameError)
+        (return Nothing)
  where
     isFileBlob entry = Git.treeEntryGetFileMode entry >>= \case
         Git.FileModeBlob           -> return True
