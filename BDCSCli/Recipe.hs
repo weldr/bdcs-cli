@@ -431,9 +431,7 @@ parentDiff repo filename commit_tree parent_commit = do
     parent_tree <- Git.commitGetTree parent_commit >>= maybeThrow GetTreeError
     diff <- Git.diffNewTreeToTree repo (Just commit_tree) (Just parent_tree) (Just diff_opts) >>= maybeThrow NewTreeError
     num_deltas <- Git.diffGetNumDeltas diff
-    if num_deltas > 0
-    then return True
-    else return False
+    return $ num_deltas > 0
 
 -- | Find the revision tag pointing to a specific commit
 --
@@ -469,9 +467,7 @@ findCommitTag repo branch filename commit_id = do
         oid <- Git.tagGetTargetId tag_obj >>= maybeThrow GetTargetIdError
 
         cmp <- Git.oIdCompare oid commit_id
-        if cmp == 0
-            then return True
-            else return False
+        return $ cmp == 0
 
 -- | Return the revision number from a git tag
 -- Tag is of the form 'refs/tags/<branch>/<filename>/r<revision>
@@ -519,9 +515,7 @@ tagFileCommit repo branch filename = do
         commit_type <- gobjectType (undefined :: Git.Commit)
         commit_obj <- Git.repositoryLookup repo commit_id commit_type >>= maybeThrow LookupError
         mtag_id <- Git.repositoryCreateTag repo name commit_obj sig name [Git.CreateFlagsNone]
-        if isJust mtag_id
-            then return True
-            else return False
+        return $ isJust mtag_id
 
     -- | Find the last revision in the commits and return it
     findLastRev :: [CommitDetails] -> Maybe CommitDetails
