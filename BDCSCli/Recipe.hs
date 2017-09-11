@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
@@ -284,12 +285,10 @@ getFilename tree idx = do
             return $ Just name
         else return Nothing
  where
-    isFileBlob entry = do
-        mode <- Git.treeEntryGetFileMode entry
-        case mode of
-            Git.FileModeBlob           -> return True
-            Git.FileModeBlobExecutable -> return True
-            _                          -> return False
+    isFileBlob entry = Git.treeEntryGetFileMode entry >>= \case
+        Git.FileModeBlob           -> return True
+        Git.FileModeBlobExecutable -> return True
+        _                          -> return False
 
 {-# ANN getFilenames ("HLint: ignore Eta reduce"::String) #-}
 -- | Get a list of the Blob tree entry filenames
@@ -299,11 +298,9 @@ getFilenames tree idx = getFilenames' tree [] idx
 -- | Build the list of filenames from the tree entries
 getFilenames' :: Git.Tree -> [T.Text] -> Word32 -> IO [T.Text]
 getFilenames' _ filenames 0 = return filenames
-getFilenames' tree filenames idx = do
-    filename <- getFilename tree (idx-1)
-    case filename of
-        Just name -> getFilenames' tree (name:filenames) (idx-1)
-        Nothing   -> getFilenames' tree filenames (idx-1)
+getFilenames' tree filenames idx = getFilename tree (idx-1) >>= \case
+    Just name -> getFilenames' tree (name:filenames) (idx-1)
+    Nothing   -> getFilenames' tree filenames (idx-1)
 
 -- | List the files on a branch
 listBranchFiles :: Git.Repository -> T.Text -> IO [T.Text]
@@ -440,8 +437,7 @@ parentDiff repo filename commit_tree parent_commit = do
 findCommitTag :: Git.Repository -> T.Text -> T.Text -> Git.OId -> IO (Maybe T.Text)
 findCommitTag repo branch filename commit_id = do
     let tag_pattern = T.pack $ printf "%s/%s/r*" branch filename
-    mall_tags <- Git.repositoryListTagsMatch repo (Just tag_pattern)
-    case mall_tags of
+    Git.repositoryListTagsMatch repo (Just tag_pattern) >>= \case
         Just []    -> return Nothing
         Just tags  -> filterTags tags
         Nothing    -> return Nothing
