@@ -520,9 +520,9 @@ tagFileCommit repo branch filename = do
     -- If it is, then we cannot make a new tag.
     -- If it is not, or there is no rev_commit, we can tag a new one.
     isFirstCommit :: [CommitDetails] -> Maybe CommitDetails -> Bool
-    isFirstCommit commits rev_commit = case rev_commit of
-                                           Nothing -> False
-                                           Just commit -> commit == head commits
+    isFirstCommit _ Nothing           = False
+    isFirstCommit [] _                = False
+    isFirstCommit (c:_) (Just commit) = commit == c
 
 
 -- | Read and parse a recipe file
