@@ -151,7 +151,7 @@ recipesFreeze ctx ("show":xs) = mapM_ showFrozenRecipe $ argify xs
 -- Save the frozen recipe in TOML format, as <recipe name>.frozen.toml
 recipesFreeze ctx ("save":xs) = mapM_ saveFrozenRecipe $ argify xs
   where
-    saveFrozenRecipe x = freezeRecipeToml ctx x >>= \r -> do
+    saveFrozenRecipe x = freezeRecipeToml ctx x >>= \r ->
         writeFile (frozenTomlFileName x) $ C8.unpack $ fromJust r ^. responseBody
 
 -- | Process the recipes freeze
