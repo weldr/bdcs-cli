@@ -11,39 +11,39 @@ cache:
 
 before_install:
   - sudo docker pull welder/bdcs-api-rs:latest
-  - sudo pip install s3cmd toml parameterized
+  - sudo docker pull welder/bdcs-cli:latest
+  - sudo pip install s3cmd
   - wget --progress=dot:giga https://haskell.org/platform/download/8.0.2/haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
   - tar -xzvf ./haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
   - sudo ./install-haskell-platform.sh
-  - travis_retry cabal update && cabal install hlint hpc-coveralls
+  - travis_retry cabal update && cabal install hpc-coveralls
 
 script:
   - |
     if [ "$TRAVIS_EVENT_TYPE" == "cron" ]; then
         ./tests/test_images.sh
     else
-        ~/.cabal/bin/hlint .
-        cabal install --dependencies-only --enable-tests --force-reinstalls
-        cabal configure --enable-tests --enable-coverage --ghc-option=-DTEST
-        cabal build
-        cabal test --show-details=always
+        make test-in-docker
 
-        # tests for bdcs-cli binary
-        ./tests/test_binary.sh
-        # depsolve integration tests
-        ./tests/test_depsolve.sh
-
-        # collect binary coverage
-        mkdir ./dist/hpc/vanilla/tix/bdcs-cli/
-        mv bdcs-cli.tix ./dist/hpc/vanilla/tix/bdcs-cli/
+        # copy the newly built files and coverage data out of
+        # the container
+        sudo docker create --name test-cont welder/bdcs-cli-integration-test:latest /bin/bash
+        sudo docker cp test-cont:/bdcs-cli/dist ./dist
+        sudo docker rm test-cont
     fi
 
 after_success:
   - |
     if [ "$TRAVIS_EVENT_TYPE" != "cron" ]; then
+        sudo chown travis:travis -R ./dist
         ~/.cabal/bin/hpc-coveralls --display-report spec bdcs-cli
 
         if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
+            sudo docker tag welder/bdcs-cli:latest welder/bdcs-cli:$TRAVIS_BUILD_NUMBER
+
+            docker login -u atodorov -p $DOCKER_PASSWORD
+            docker push welder/bdcs-cli
+
             s3cmd sync --access_key="$ARTIFACTS_KEY" --secret_key="$ARTIFACTS_SECRET" \
                         -v -P ./dist/build/bdcs-cli/bdcs-cli s3://weldr/bdcs-cli
         fi

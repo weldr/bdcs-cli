@@ -1,0 +1,31 @@
+FROM fedora:26
+
+RUN dnf -y install python3-dnf-plugins-core && \
+    dnf -y copr enable @weldr/bdcs-haskell-deps && \
+    rpm --import https://copr-be.cloud.fedoraproject.org/results/@weldr/bdcs-haskell-deps/pubkey.gpg && \
+    dnf -y install sudo cabal-install cabal-rpm \
+                   python-toml python-nose-parameterized \
+                   gobject-introspection-devel ghc-*weldr* \
+                   ghc-haskell-gi{,-devel}-0.20.3-1.fc26.weldr.1 \
+                   libgit2-glib{,-devel}-0.26.0-2.fc26.weldr.1 \
+                   hlint
+
+RUN mkdir /bdcs-cli
+WORKDIR /bdcs-cli
+
+# install the build dependencies first so we can cache this layer
+COPY BDCSCli.cabal .
+RUN cabal update
+RUN for i in `cabal install --dependencies-only --enable-tests --enable-coverage --dry-run | \
+              grep - | grep -v "In order" | grep -v basement | grep -v overloading | \
+              sed -r 's|-[0-9]+(\.[0-9]+)*||'`; do \
+        echo ghc-$i ghc-$i-devel; done | xargs dnf -y install && dnf clean all
+
+# copy the rest of the code
+COPY . /bdcs-cli
+
+# build the application
+RUN hlint .
+RUN cabal configure --enable-tests --enable-coverage --ghc-option=-DTEST && \
+    cabal build && \
+    cabal test --show-details=always
