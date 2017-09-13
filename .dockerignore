@@ -1,0 +1,11 @@
+*.sql
+*.tix
+*.db
+*.repo/
+cabal.sandbox.config
+.cabal-sandbox/
+.git/
+dist/
+import
+export
+bdcs-cli
