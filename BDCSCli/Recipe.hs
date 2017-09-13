@@ -72,7 +72,7 @@ import           Text.Toml(parseTomlDoc)
 import           BDCSCli.API.V0(Recipe(..), RecipeModule(..))
 import           BDCSCli.Utilities(maybeThrow)
 
-{-# ANN module "HLint: ignore Reduce duplication" #-}
+{-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 
 data GitError =
     OpenRepoError
