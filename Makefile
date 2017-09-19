@@ -1,5 +1,10 @@
 ORG_NAME=welder
 
+ifeq ($(API_CONTAINER_RUNNING),skip-check)
+else
+    API_CONTAINER_RUNNING=$(shell sudo docker ps | grep -c api)
+endif
+
 default: all
 
 all: bdcs-cli
@@ -32,7 +37,7 @@ test-in-docker: Dockerfile.build
 	sudo docker network create welder
 	# download metadata and run the API backend which provides depsolving
 	[ -f "metadata.db" ] || curl https://s3.amazonaws.com/weldr/metadata.db > metadata.db
-	sudo docker ps | grep api || sudo docker run -d --rm --name api -p 4000:4000 -v `pwd`:/mddb --security-opt label=disable --network welder welder/bdcs-api-rs:latest
+	[ "$(API_CONTAINER_RUNNING)" == "1" ] || sudo docker run -d --rm --name api -p 4000:4000 -v `pwd`:/mddb --security-opt label=disable --network welder welder/bdcs-api-rs:latest
 
 	sudo docker build -t $(ORG_NAME)/bdcs-cli:latest -f $< --cache-from $(ORG_NAME)/bdcs-cli:latest .
 	sudo docker build -t $(ORG_NAME)/bdcs-cli-integration-test:latest -f Dockerfile.integration-test --network welder .

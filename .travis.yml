@@ -23,7 +23,7 @@ script:
     if [ "$TRAVIS_EVENT_TYPE" == "cron" ]; then
         ./tests/test_images.sh
     else
-        make test-in-docker
+        API_CONTAINER_RUNNING=skip-check make test-in-docker
 
         # copy the newly built files and coverage data out of
         # the container
