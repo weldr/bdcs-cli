@@ -65,6 +65,12 @@ class DepsolveTestCase(unittest.TestCase):
         if recipe_name == 'kubernetes':
             self.skipTest('known issue with updates for kubernetes')
 
+        # KNOWN ISSUE, WONT FIX, SKIP
+        # dshea: probably the same java dependency mess that causes bdcs-api-rs to fail on libreoffice
+        # TODO: remove this skip once we switch over to the bdcs depsolving code
+        if recipe_name == 'jboss':
+            self.skipTest('known issue for jboss')
+
         # step 2: is what the user wanted still in the list
         for pkg in expected_packages:
             self.assertIn(pkg, depsolve_output)
