@@ -20,9 +20,6 @@ before_install:
 
 script:
   - |
-    if [ "$TRAVIS_EVENT_TYPE" == "cron" ]; then
-        ./tests/test_images.sh
-    else
         API_CONTAINER_RUNNING=skip-check make test-in-docker
 
         # copy the newly built files and coverage data out of
@@ -30,11 +27,9 @@ script:
         sudo docker create --name test-cont welder/bdcs-cli-integration-test:latest /bin/bash
         sudo docker cp test-cont:/bdcs-cli/dist ./dist
         sudo docker rm test-cont
-    fi
 
 after_success:
   - |
-    if [ "$TRAVIS_EVENT_TYPE" != "cron" ]; then
         sudo chown travis:travis -R ./dist
         ~/.cabal/bin/hpc-coveralls --display-report spec bdcs-cli
 
@@ -47,7 +42,6 @@ after_success:
             s3cmd sync --access_key="$ARTIFACTS_KEY" --secret_key="$ARTIFACTS_SECRET" \
                         -v -P ./dist/build/bdcs-cli/bdcs-cli s3://weldr/bdcs-cli
         fi
-    fi
 
 notifications:
   email:
