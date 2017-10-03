@@ -1,25 +1,30 @@
 #!/bin/bash
-set -x
-
 # Note: execute this file from the project root directory
 
-BDCS_CLI="./dist/build/bdcs-cli/bdcs-cli"
+. /usr/share/beakerlib/beakerlib.sh
 
 METADATA_DB="metadata.db"
 
-# start the backend API which provides depsolving only if not running already
-# later this will be replaced with the depsolver from bdcs library
-if [ -z "$START_API_EXTERNALLY" ]; then
-    sudo docker ps | grep api
-    if [ $? -ne 0 ]; then
-        [ -f "$METADATA_DB" ] || ./tests/bin/import-metadata
-        sudo docker run -d --rm --name api -p 4000:4000 -v `pwd`:/mddb --security-opt label=disable welder/bdcs-api-rs:latest
-    fi
-fi
+rlJournalStart
+    rlPhaseStartSetup
+        # start the backend API which provides depsolving only if not running already
+        # later this will be replaced with the depsolver from bdcs library
+        if [ -z "$START_API_EXTERNALLY" ]; then
+            sudo docker ps | grep api
+            if [ $? -ne 0 ]; then
+                [ -f "$METADATA_DB" ] || ./tests/bin/import-metadata
+                sudo docker run -d --rm --name api -p 4000:4000 -v `pwd`:/mddb --security-opt label=disable welder/bdcs-api-rs:latest
+            fi
+        fi
+    rlPhaseEnd
 
-RUNNER="python"
-rpm -q python-nose-parameterized >/dev/null
-if [ $? -eq 0 ]; then
-    RUNNER="nosetests"
-fi
-$RUNNER ./tests/test_depsolve.py -v
+    rlPhaseStartTest
+        RUNNER="python"
+        if ! rlCheckRpm python-nose-parameterized; then
+            RUNNER="nosetests"
+        fi
+        rlRun "$RUNNER ./tests/test_depsolve.py -v"
+    rlPhaseEnd
+
+rlJournalEnd
+rlJournalPrintText

@@ -1,26 +1,28 @@
 #!/bin/bash
-set -x
-
 # Note: execute this file from the project root directory
+
+. /usr/share/beakerlib/beakerlib.sh
 
 bdcscli="./dist/build/bdcs-cli/bdcs-cli"
 
-# When called without parameters prints usage & help
-if [[ $($bdcscli 2>&1 | head -n 1) != "Usage: bdcs-cli [OPTIONS...] commands..." ]]; then
-    exit 1
-fi
 
-# --help option is not recognized
-if [[ $($bdcscli --help 2>&1 | head -n 1) != "bdcs-cli: user error (unrecognized option \`--help'" ]]; then
-    exit 1
-fi
+rlJournalStart
+    rlPhaseStartTest
+        rlAssertEquals "When called without parameters prints usage & help" \
+            "`$bdcscli 2>&1 | head -n 1`" \
+            "Usage: bdcs-cli [OPTIONS...] commands..."
 
-# -? returns version only
-if [[ $($bdcscli -? | head -n 1 | cut -f1 -d' ') != "bdcs-cli" ]]; then
-    exit 1
-fi
+        rlAssertEquals "--help option is not recognized" \
+            "`$bdcscli --help 2>&1 | head -n 1`" \
+            "bdcs-cli: user error (unrecognized option \`--help'"
 
-# bdcs-cli help returns the help text
-if [[ $($bdcscli help 2>&1 | wc -l) != "21" ]]; then
-    exit 1
-fi
+        rlAssertEquals "-? returns version only" \
+            "`$bdcscli -? | head -n 1 | cut -f1 -d' '`" \
+            "bdcs-cli"
+
+        rlAssertEquals "bdcs-cli help returns the help text" \
+            "`$bdcscli help 2>&1 | wc -l`" 21
+    rlPhaseEnd
+
+rlJournalEnd
+rlJournalPrintText
