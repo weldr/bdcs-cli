@@ -7,7 +7,7 @@ RUN dnf -y install python3-dnf-plugins-core && \
                    python-toml python-nose-parameterized \
                    gobject-introspection-devel ghc-*weldr* \
                    ghc-haskell-gi-devel libgit2-glib-devel \
-                   hlint ostree
+                   hlint ostree beakerlib
 
 RUN mkdir /bdcs-cli
 WORKDIR /bdcs-cli
