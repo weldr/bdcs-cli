@@ -41,10 +41,8 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
 import Data.Maybe(fromMaybe)
 import Network.Wreq
-import Network.Wreq.Session(Session)
 import Text.Printf(printf)
 
-import BDCSCli.Cmdline(CliOptions(..))
 import BDCSCli.CommandCtx(CommandCtx(..))
 import BDCSCli.URL(apiUrl, getUrl, postUrl)
 

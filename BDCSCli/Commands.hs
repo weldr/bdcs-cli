@@ -30,7 +30,6 @@ import Data.List (intercalate)
 import Data.Maybe (isJust, fromJust)
 import qualified Data.Text as T
 import Network.Wreq
-import Network.Wreq.Session as S
 import Text.Printf(printf)
 import System.Process(rawSystem)
 import System.Directory(doesFileExist)
