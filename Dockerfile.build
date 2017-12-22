@@ -6,8 +6,7 @@ RUN dnf -y install python3-dnf-plugins-core && \
     dnf -y install sudo cabal-install cabal-rpm \
                    python-toml python-nose-parameterized \
                    gobject-introspection-devel ghc-*weldr* \
-                   ghc-haskell-gi{,-devel}-0.20.3-1.fc26.weldr.1 \
-                   libgit2-glib{,-devel}-0.26.0-2.fc26.weldr.1 \
+                   ghc-haskell-gi-devel libgit2-glib-devel \
                    hlint
 
 RUN mkdir /bdcs-cli
