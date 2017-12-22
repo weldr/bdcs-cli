@@ -1,0 +1,34 @@
+#!/usr/bin/env python
+
+# parse the toml recipes and produce a list of RPMs suitable for
+# installation by dnf
+
+#pylint: disable=missing-docstring,import-error,too-many-public-methods
+
+from __future__ import print_function
+
+import os
+import toml
+
+_DIR = os.path.dirname(__file__)
+
+_RECIPE_DIR = os.path.join(_DIR, '..', '..', 'examples', 'recipes')
+_RECIPE_DIR = os.path.abspath(_RECIPE_DIR)
+
+def parse_recipe(filename):
+    recipe = toml.loads(open(os.path.join(_RECIPE_DIR, filename), 'r').read())
+
+    for key in ['packages', 'modules']:
+        if key in recipe:
+            for pkg in recipe[key]:
+                nevra = pkg['name']
+                version = pkg['version']
+                if version != '*':
+                    nevra += '-' + version
+                print(nevra)
+
+
+for _dirpath, _dirnames, filenames in os.walk(_RECIPE_DIR):
+    for _recipe in filenames:
+        if _recipe.endswith('.toml'):
+            parse_recipe(_recipe)
