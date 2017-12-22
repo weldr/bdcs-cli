@@ -20,6 +20,7 @@ before_install:
 
 script:
   - |
+        set -e
         API_CONTAINER_RUNNING=skip-check make test-in-docker
 
         # copy the newly built files and coverage data out of
