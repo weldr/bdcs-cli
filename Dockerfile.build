@@ -3,11 +3,11 @@ FROM fedora:26
 RUN dnf -y install python3-dnf-plugins-core && \
     dnf -y copr enable @weldr/bdcs-haskell-deps && \
     rpm --import https://copr-be.cloud.fedoraproject.org/results/@weldr/bdcs-haskell-deps/pubkey.gpg && \
-    dnf -y install sudo cabal-install cabal-rpm \
+    dnf -y install sudo cabal-install cabal-rpm sqlite \
                    python-toml python-nose-parameterized \
                    gobject-introspection-devel ghc-*weldr* \
                    ghc-haskell-gi-devel libgit2-glib-devel \
-                   hlint
+                   hlint ostree
 
 RUN mkdir /bdcs-cli
 WORKDIR /bdcs-cli
@@ -28,3 +28,8 @@ RUN hlint .
 RUN cabal configure --enable-tests --enable-coverage --ghc-option=-DTEST && \
     cabal build && \
     cabal test --show-details=always
+
+# if all unit tests were successfull then create metadata.db
+RUN ./tests/bin/import-metadata
+
+ENTRYPOINT ["/bdcs-cli/entrypoint-integration-test.sh"]

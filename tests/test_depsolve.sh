@@ -12,7 +12,7 @@ METADATA_DB="metadata.db"
 if [ -z "$START_API_EXTERNALLY" ]; then
     sudo docker ps | grep api
     if [ $? -ne 0 ]; then
-        [ -f "$METADATA_DB" ] || curl https://s3.amazonaws.com/weldr/metadata.db > "$METADATA_DB"
+        [ -f "$METADATA_DB" ] || ./tests/bin/import-metadata
         sudo docker run -d --rm --name api -p 4000:4000 -v `pwd`:/mddb --security-opt label=disable welder/bdcs-api-rs:latest
     fi
 fi

@@ -24,7 +24,7 @@ script:
 
         # copy the newly built files and coverage data out of
         # the container
-        sudo docker create --name test-cont welder/bdcs-cli-integration-test:latest /bin/bash
+        sudo docker create --name test-cont welder/bdcs-cli:latest /bin/bash
         sudo docker cp test-cont:/bdcs-cli/dist ./dist
         sudo docker rm test-cont
 
