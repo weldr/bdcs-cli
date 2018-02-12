@@ -31,7 +31,7 @@ library
                         directory,
                         gi-gio,
                         gi-ggit,
-                        gi-glib,
+                        gi-glib >= 2.0.15 && < 2.1,
                         htoml,
                         lens,
                         lens-aeson,
