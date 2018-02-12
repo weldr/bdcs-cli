@@ -411,7 +411,7 @@ commitDetails repo revwalk branch filename details next_id = do
         timeval <- GLib.newZeroTimeVal
         ok <- GLib.dateTimeToTimeval datetime timeval
         -- XXX Handle error (ok == False)
-        time_str <- GLib.timeValToIso8601 timeval
+        time_str <- GLib.timeValToIso8601 timeval >>= maybeThrow GetTimeError
 
         let commit = CommitDetails {cdCommit=commit_str, cdTime=time_str, cdMessage=message, cdRevision=revision}
         commitDetails repo revwalk branch filename (commit:details) mnext_id
