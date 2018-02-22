@@ -1,35 +1,15 @@
-FROM fedora:26
+FROM fedora:27
 
 RUN dnf -y install python3-dnf-plugins-core && \
     dnf -y copr enable @weldr/bdcs-haskell-deps && \
     rpm --import https://copr-be.cloud.fedoraproject.org/results/@weldr/bdcs-haskell-deps/pubkey.gpg && \
-    dnf -y install sudo cabal-install cabal-rpm sqlite \
-                   python-toml python-nose-parameterized \
-                   gobject-introspection-devel ghc-*weldr* \
+    dnf -y install sudo cabal-install cabal-rpm sqlite python3-toml \
+                   https://kojipkgs.fedoraproject.org/packages/python-parameterized/0.6.1/2.fc28/noarch/python3-parameterized-0.6.1-2.fc28.noarch.rpm \
+                   gobject-introspection-devel \
                    ghc-haskell-gi-devel libgit2-glib-devel \
-                   hlint ostree beakerlib
+                   ostree beakerlib
 
-RUN mkdir /bdcs-cli
+# source is bind-mounted here
 WORKDIR /bdcs-cli
-
-# install the build dependencies first so we can cache this layer
-COPY BDCSCli.cabal .
-RUN cabal update
-RUN for i in `cabal install --dependencies-only --enable-tests --enable-coverage --dry-run | \
-              grep - | grep -v "In order" | grep -v basement | grep -v overloading | \
-              sed -r 's|-[0-9]+(\.[0-9]+)*||'`; do \
-        echo ghc-$i ghc-$i-devel; done | xargs dnf -y install && dnf clean all
-
-# copy the rest of the code
-COPY . /bdcs-cli
-
-# build the application
-RUN hlint .
-RUN cabal configure --enable-tests --enable-coverage --ghc-option=-DTEST && \
-    cabal build && \
-    cabal test --show-details=always
-
-# if all unit tests were successfull then create metadata.db
-RUN ./tests/bin/import-metadata
 
 ENTRYPOINT ["/bdcs-cli/entrypoint-integration-test.sh"]

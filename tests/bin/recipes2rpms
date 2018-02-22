@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 
 # parse the toml recipes and produce a list of RPMs suitable for
 # installation by dnf

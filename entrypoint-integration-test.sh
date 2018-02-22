@@ -4,6 +4,13 @@ set -ex
 
 cd /bdcs-cli/
 
+# build the application
+make hlint tests
+
+# if all unit tests were successfull then create metadata.db
+./tests/bin/import-metadata
+
+
 # don't produce XML journal b/c that needs Python
 export BEAKERLIB_JOURNAL=0
 
