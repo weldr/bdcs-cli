@@ -19,11 +19,7 @@ rlJournalStart
     rlPhaseEnd
 
     rlPhaseStartTest
-        RUNNER="python"
-        if ! rlCheckRpm python-nose-parameterized; then
-            RUNNER="nosetests"
-        fi
-        rlRun "$RUNNER ./tests/test_depsolve.py -v"
+        rlRun "python3 ./tests/test_depsolve.py -v"
     rlPhaseEnd
 
 rlJournalEnd

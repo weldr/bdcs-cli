@@ -6,43 +6,13 @@ services:
 
 cache:
   directories:
-    - ~/.ghc
-    - ~/.cabal
-
-before_install:
-  - sudo docker pull welder/bdcs-api-rs:latest
-  - sudo docker pull welder/bdcs-cli:latest
-  - sudo pip install s3cmd
-  - wget --progress=dot:giga https://haskell.org/platform/download/8.0.2/haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
-  - tar -xzvf ./haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
-  - sudo ./install-haskell-platform.sh
-  - travis_retry cabal update && cabal install hpc-coveralls
+    - .cabal-sandbox/
 
 script:
-  - |
-        set -e
-        API_CONTAINER_RUNNING=skip-check make test-in-docker
-
-        # copy the newly built files and coverage data out of
-        # the container
-        sudo docker create --name test-cont welder/bdcs-cli:latest /bin/bash
-        sudo docker cp test-cont:/bdcs-cli/dist ./dist
-        sudo docker rm test-cont
+  - API_CONTAINER_RUNNING=skip-check make ci
 
 after_success:
-  - |
-        sudo chown travis:travis -R ./dist
-        ~/.cabal/bin/hpc-coveralls --display-report spec bdcs-cli
-
-        if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
-            sudo docker tag welder/bdcs-cli:latest welder/bdcs-cli:$TRAVIS_BUILD_NUMBER
-
-            docker login -u atodorov -p $DOCKER_PASSWORD
-            docker push welder/bdcs-cli
-
-            s3cmd sync --access_key="$ARTIFACTS_KEY" --secret_key="$ARTIFACTS_SECRET" \
-                        -v -P ./dist/build/bdcs-cli/bdcs-cli s3://weldr/bdcs-cli
-        fi
+  - make ci_after_success
 
 notifications:
   email:
