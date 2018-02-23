@@ -2,7 +2,12 @@
 
 import os
 import unittest
+import warnings
 from subprocess import check_output, CalledProcessError
+
+# silence resource warnings while testing, see
+# https://emptysqua.re/blog/against-resourcewarnings-in-python-3/
+warnings.simplefilter("ignore", ResourceWarning)
 
 import toml
 
@@ -32,12 +37,13 @@ for _dirpath, _dirnames, filenames in os.walk(_RECIPE_DIR):
 
 
 def read_toml(fname):
-    return toml.loads(open(os.path.join(_RECIPE_DIR, fname), 'r').read())
+    with open(os.path.join(_RECIPE_DIR, fname), 'r') as f_handle:
+        return toml.loads(f_handle.read())
 
 def exec_depsolve(recipe_name):
     # will raise CalledProcessError exception if depsolve
-    # exit status is != 0
-    return check_output(_DEPSOLVE + [recipe_name])
+    # exit status is != 0. Returns string
+    return check_output(_DEPSOLVE + [recipe_name]).decode('utf-8')
 
 
 class DepsolveTestCase(unittest.TestCase):
@@ -55,6 +61,16 @@ class DepsolveTestCase(unittest.TestCase):
         try:
             recipe_name = recipe_file.replace('.toml', '')
             depsolve_output = exec_depsolve(recipe_name)
+            # remove the first line which is something like:
+            # Recipe: glusterfs v0.0.1\n
+            # ... then followed by a list of RPM NEVRA
+            # we don't want to accidentally match a package name against
+            # the recipe name when they exist (e.g. atlas)
+            depsolve_output = depsolve_output.strip().split('\n')[1:]
+
+            # then turn back the list into a string to make
+            # assertions below easier
+            depsolve_output = '\n'.join(depsolve_output)
         except CalledProcessError as err:
             self.assertEqual('', err.output)
             self.fail('depsolve failed!')
