@@ -30,6 +30,11 @@ DNF_DOWNLOAD=`mktemp -d /tmp/dnf.download.XXXXXX`
 ./tests/bin/recipes2rpms | xargs sudo dnf install -y --nogpgcheck --releasever=26 \
                                                      --downloadonly --downloaddir=$DNF_DOWNLOAD \
                                                      --installroot=$DNF_ROOT
+
+# download additional RPMs which are weak dependencies (e.g. Suggests:)
+sudo dnf install -y --nogpgcheck --releasever=26 --downloadonly --downloaddir=$DNF_DOWNLOAD \
+                    --installroot=$DNF_ROOT perl-Authen-SASL perl-Business-ISBN
+
 # then import all RPMs
 for F in $DNF_DOWNLOAD/*.rpm; do
     $IMPORT $METADATA $IMPORT_REPO file://$F
