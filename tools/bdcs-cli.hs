@@ -33,7 +33,8 @@ printUrl CliOptions{..} = putStrLn optUrl
 
 
 main :: IO ()
-main = S.withSession $ \sess -> do
+main = do
+    sess <- S.newSession
     r <- parseArgs
     let opts = fst r
     let commands = snd r
