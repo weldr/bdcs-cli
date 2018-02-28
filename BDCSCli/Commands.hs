@@ -159,6 +159,22 @@ recipesCommand ctx ("delete":recipe:_) = deleteRecipe ctx recipe >>= \r -> do
     response r = fromJust $ decodeApiResponse r
     printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ arjErrors resp
 
+-- | recipes tag <recipe-name>
+-- Tag the most recent recipe commit as a release
+recipesCommand _ ["tag"]            = putStrLn "ERROR: missing recipe name"
+recipesCommand ctx ("tag":recipe:_) = tagRecipe ctx recipe >>= \r -> do
+    j <- asValue $ fromJust r
+
+    printJSON j
+    printErrors $ response $ fromJust r
+
+    -- TODO Return a status to use for the exit code
+  where
+    isJSONOutput = optJsonOutput $ ctxOptions ctx
+    printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
+    response r = fromJust $ decodeApiResponse r
+    printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ arjErrors resp
+
 recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
 recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"
 
