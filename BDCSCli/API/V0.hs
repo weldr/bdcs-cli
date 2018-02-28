@@ -24,6 +24,7 @@ module BDCSCli.API.V0(listRecipes,
                       freezeRecipeToml,
                       freezeRecipes,
                       newRecipes,
+                      tagRecipe,
                       listModules,
                       listProjects,
                       infoProjects,
@@ -78,6 +79,10 @@ newRecipes CommandCtx{..} bodyStr = postUrl ctxSession (apiUrl ctxOptions "recip
 -- | DELETE a recipe
 deleteRecipe :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
 deleteRecipe CommandCtx{..} recipe = deleteUrl ctxSession $ apiUrl ctxOptions "recipes/delete/" ++ recipe
+
+-- | Tag the most recent recipe commit
+tagRecipe :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+tagRecipe CommandCtx{..} recipe = postUrl ctxSession (apiUrl ctxOptions "recipes/tag/" ++ recipe) ""
 
 -- | Request a list of the available modules from the API server
 listModules :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
