@@ -88,6 +88,7 @@ helpText = "\
 \  recipes list                     List the names of the available recipes.\n\
 \          show <recipe,...>        Display the recipe in TOML format.\n\
 \          save <recipe,...>        Save the recipe to a file, <recipe-name>.toml\n\
+\          delete <recipe>          Delete a recipe from the server\n\
 \          depsolve <recipe,...>    Display the packages needed to install the recipe.\n\
 \          push <recipe>            Push a recipe TOML file to the server.\n\
 \          freeze <recipe,...>      Display the frozen recipe's modules and packages.\n\

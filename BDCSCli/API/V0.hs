@@ -19,6 +19,7 @@
 
 module BDCSCli.API.V0(listRecipes,
                       infoRecipes,
+                      deleteRecipe,
                       depsolveRecipes,
                       freezeRecipeToml,
                       freezeRecipes,
@@ -26,11 +27,14 @@ module BDCSCli.API.V0(listRecipes,
                       listModules,
                       listProjects,
                       infoProjects,
+                      decodeApiResponse,
                       decodeDepsolve,
                       decodeFreeze,
                       recipesDepsList,
                       recipesFrozenList,
                       getDepNEVRAList,
+                      ApiResponseJSON(..),
+                      ApiErrorDetail(..),
                       Recipe(..),
                       RecipeModule(..))
   where
@@ -44,7 +48,7 @@ import Network.Wreq
 import Text.Printf(printf)
 
 import BDCSCli.CommandCtx(CommandCtx(..))
-import BDCSCli.URL(apiUrl, getUrl, postUrl)
+import BDCSCli.URL(apiUrl, getUrl, postUrl, deleteUrl)
 
 -- | Request the list of recipes from the API server
 listRecipes :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
@@ -71,6 +75,10 @@ freezeRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "re
 newRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
 newRecipes CommandCtx{..} bodyStr = postUrl ctxSession (apiUrl ctxOptions "recipes/new") bodyStr
 
+-- | DELETE a recipe
+deleteRecipe :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+deleteRecipe CommandCtx{..} recipe = deleteUrl ctxSession $ apiUrl ctxOptions "recipes/delete/" ++ recipe
+
 -- | Request a list of the available modules from the API server
 listModules :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
 listModules CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "modules/list"
@@ -85,8 +93,49 @@ infoProjects CommandCtx{..} projects = getUrl ctxSession $ apiUrl ctxOptions "pr
 
 
 --
--- JSON Data types for parsing the BDCS API recipes/depsolve/ response
+-- JSON Data types for parsing the BDCS API responses
 --
+
+-- | API Status response with possible error messages
+data ApiResponseJSON = ApiResponseJSON
+    { arjStatus :: Bool
+    , arjErrors :: [ApiErrorDetail]
+    } deriving Show
+
+instance FromJSON ApiResponseJSON where
+  parseJSON = withObject "API Response JSON" $ \o -> do
+    arjStatus <- o .: "status"
+    arjErrors <- o .: "errors"
+    return ApiResponseJSON{..}
+
+instance ToJSON ApiResponseJSON where
+  toJSON ApiResponseJSON{..} = object
+    [ "status" .= arjStatus
+    , "errors" .= arjErrors
+    ]
+
+-- | Error message for a specific recipe
+data ApiErrorDetail = ApiErrorDetail
+    { aedRecipe :: String
+    , aedMsg    :: String
+    } deriving Show
+
+instance FromJSON ApiErrorDetail where
+  parseJSON = withObject "API Error Detail" $ \o -> do
+    aedRecipe <- o .: "recipe"
+    aedMsg    <- o .: "msg"
+    return ApiErrorDetail{..}
+
+instance ToJSON ApiErrorDetail where
+  toJSON ApiErrorDetail{..} = object
+    [ "recipe" .= aedRecipe
+    , "msg"    .= aedMsg
+    ]
+
+-- | Convert the server response into data structures
+decodeApiResponse :: Response C8.ByteString -> Maybe ApiResponseJSON
+decodeApiResponse resp = decode $ resp ^. responseBody
+
 
 newtype DependencyJSON =
     DependencyJSON { djRecipes  :: [RecipeDeps]
