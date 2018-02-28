@@ -41,5 +41,5 @@ for F in $DNF_DOWNLOAD/*.rpm; do
 done
 
 # cleanup temporary directories and files
-rm -rf $DNF_ROOT $DNF_DOWNLOAD $IMPORT $SCHEMA
-[ "$REMOVE_IMPORT_REPO" == 1 ] && rm -rf $IMPORT_REPO
+rm -rf $DNF_ROOT $DNF_DOWNLOAD $IMPORT $SCHEMA || echo "Can't remove some files"
+[ "$REMOVE_IMPORT_REPO" == 1 ] && rm -rf $IMPORT_REPO || echo "Can't remove some files"
