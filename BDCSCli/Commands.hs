@@ -21,7 +21,7 @@ module BDCSCli.Commands(parseCommand)
 
 import Control.Conditional (unlessM)
 import Control.Lens ((^..), (^.))
-import Control.Monad(when, forM_)
+import Control.Monad(when, forM_, unless)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.Aeson.Lens (_String, key, values)
@@ -64,6 +64,13 @@ humanRecipesList :: Response Value -> String
 humanRecipesList jsonValue = intercalate ", " $ map T.unpack recipes
   where recipes = jsonValue ^.. responseBody . key "recipes" . values . _String
 
+-- | Get the error messages from a list of ApiErrorDetails
+getErrors :: [ApiErrorDetail] -> [String]
+getErrors errors =
+    [ "ERROR: " ++ recipeName ++ " - " ++ msg
+    | ApiErrorDetail { aedRecipe = recipeName, aedMsg = msg } <- errors
+    ]
+
 -- | Process the compose types command
 -- Prints a list of the supported compose types
 composeCommand :: CommandCtx -> [String] -> IO ()
@@ -71,7 +78,7 @@ composeCommand _ ("types":_) =
     -- API has a list of compose types, but we are not currently using that
     putStrLn "tar"
 
-composeCommand _   ["tar"]          = putStrLn "ERROR: Missing recipe name"
+composeCommand _   ["tar"]          = putStrLn "ERROR: missing recipe name"
 composeCommand ctx ("tar":recipe:_) = depsolveRecipes ctx recipe >>= \r -> do
     let deps = decodeDepsolve $ fromJust r
 --    when (isJust deps) $ composeTar opts $ fromJust deps
@@ -135,6 +142,23 @@ recipesCommand ctx ("push":xs) = mapM_ pushRecipe $ argify xs
             exitFailure
         toml <- readFile name
         newRecipes ctx toml
+
+-- | recipes delete <recipe-name>
+-- Delete a recipe from the server
+recipesCommand _ ["delete"]            = putStrLn "ERROR: missing recipe name"
+recipesCommand ctx ("delete":recipe:_) = deleteRecipe ctx recipe >>= \r -> do
+    j <- asValue $ fromJust r
+
+    printJSON j
+    printErrors $ response $ fromJust r
+
+    -- TODO Return a status to use for the exit code
+  where
+    isJSONOutput = optJsonOutput $ ctxOptions ctx
+    printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
+    response r = fromJust $ decodeApiResponse r
+    printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ arjErrors resp
+
 recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
 recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"
 

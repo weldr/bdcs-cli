@@ -18,6 +18,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module BDCSCli.URL(apiUrl,
+                   deleteUrl,
                    getUrl,
                    postUrl)
   where
@@ -46,4 +47,6 @@ postUrl sess url bodyStr = do
     let bodyBytes = C8.pack bodyStr
     maybeIO (S.postWith opts sess url bodyBytes)
 
-
+-- | Send a DELETE request to the server and return the Response, or Nothing
+deleteUrl :: Session -> String -> IO (Maybe (Response BSL.ByteString))
+deleteUrl sess url = maybeIO (S.delete sess url)
