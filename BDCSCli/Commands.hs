@@ -143,6 +143,31 @@ recipesCommand ctx ("push":xs) = mapM_ pushRecipe $ argify xs
         toml <- readFile name
         newRecipes ctx toml
 
+-- | recipes workspace
+-- Write the recipe(s) to the server's temporary workspace storage
+recipesCommand ctx ("workspace":xs) = mapM_ pushRecipe $ argify xs
+  where
+    pushRecipe name = do
+        unlessM (doesFileExist name) $ do
+            putStrLn $ printf "ERROR: Missing file %s" name
+            exitFailure
+        toml <- readFile name
+        workspaceRecipes ctx toml >>= \r -> do
+            -- XXX YES THIS IS HORRIBLE
+            j <- asValue $ fromJust r
+
+            printJSON j
+            printErrors $ response $ fromJust r
+
+            -- TODO Return a status to use for the exit code
+          where
+            isJSONOutput = optJsonOutput $ ctxOptions ctx
+            printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
+            response r = fromJust $ decodeApiResponse r
+            printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ arjErrors resp
+
+
+
 -- | recipes delete <recipe-name>
 -- Delete a recipe from the server
 recipesCommand _ ["delete"]            = putStrLn "ERROR: missing recipe name"

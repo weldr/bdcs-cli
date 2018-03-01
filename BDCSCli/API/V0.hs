@@ -24,6 +24,7 @@ module BDCSCli.API.V0(listRecipes,
                       freezeRecipeToml,
                       freezeRecipes,
                       newRecipes,
+                      workspaceRecipes,
                       tagRecipe,
                       listModules,
                       listProjects,
@@ -75,6 +76,11 @@ freezeRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "re
 -- | POST a new TOML recipe to the API server
 newRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
 newRecipes CommandCtx{..} bodyStr = postUrl ctxSession (apiUrl ctxOptions "recipes/new") bodyStr
+
+{-# ANN workspaceRecipes ("HLint: ignore Eta reduce"::String) #-}
+-- | POST a new TOML recipe to the API server's workspace storage
+workspaceRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+workspaceRecipes CommandCtx{..} bodyStr = postUrl ctxSession (apiUrl ctxOptions "recipes/workspace") bodyStr
 
 -- | DELETE a recipe
 deleteRecipe :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
