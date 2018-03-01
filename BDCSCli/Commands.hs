@@ -208,6 +208,13 @@ recipesCommand ctx ("changes":xs) = changesRecipes ctx (intercalate "," xs) >>= 
     errors r = rcrErrors $ response r
     printChanges resp = unless (isJSONOutput ctx) $ mapM_ putStrLn $ prettyRecipeChanges $ rcrRecipes resp
 
+-- | recipe undo <recipe-name> <commit>
+-- Revert a recipe to a commit
+recipesCommand _ ["undo"]                   = putStrLn "ERROR: Missing recipe-name and commit hash"
+recipesCommand _ ["undo", _]                = putStrLn "ERROR: Missing commit hash"
+recipesCommand ctx ("undo":recipe:commit:_) =
+    undoRecipe ctx recipe commit >>= \r -> handleAPIResponse ctx r
+
 recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
 recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"
 

@@ -38,6 +38,7 @@ module BDCSCli.API.V0(listRecipes,
                       recipesDepsList,
                       recipesFrozenList,
                       getDepNEVRAList,
+                      undoRecipe,
                       ApiResponseJSON(..),
                       RecipesAPIError(..),
                       RecipesChangesResponse(..),
@@ -97,6 +98,10 @@ tagRecipe CommandCtx{..} recipe = postUrl ctxSession (apiUrl ctxOptions "recipes
 -- | Get the changes to the list of recipes
 changesRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
 changesRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "recipes/changes/" ++ recipes
+
+-- | Undo a commit to a recipe
+undoRecipe :: CommandCtx -> String -> String -> IO (Maybe (Response BSL.ByteString))
+undoRecipe CommandCtx{..} recipe commit = postUrl ctxSession (apiUrl ctxOptions "recipes/undo/" ++ recipe ++ "/" ++ commit) ""
 
 -- | Request a list of the available modules from the API server
 listModules :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
