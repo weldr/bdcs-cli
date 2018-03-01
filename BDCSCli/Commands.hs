@@ -64,11 +64,11 @@ humanRecipesList :: Response Value -> String
 humanRecipesList jsonValue = intercalate ", " $ map T.unpack recipes
   where recipes = jsonValue ^.. responseBody . key "recipes" . values . _String
 
--- | Get the error messages from a list of ApiErrorDetails
-getErrors :: [ApiErrorDetail] -> [String]
+-- | Get the error messages from a list of RecipesAPIError
+getErrors :: [RecipesAPIError] -> [String]
 getErrors errors =
     [ "ERROR: " ++ recipeName ++ " - " ++ msg
-    | ApiErrorDetail { aedRecipe = recipeName, aedMsg = msg } <- errors
+    | RecipesAPIError { raeRecipe = recipeName, raeMsg = msg } <- errors
     ]
 
 -- | Process the compose types command
@@ -166,8 +166,6 @@ recipesCommand ctx ("workspace":xs) = mapM_ pushRecipe $ argify xs
             response r = fromJust $ decodeApiResponse r
             printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ arjErrors resp
 
-
-
 -- | recipes delete <recipe-name>
 -- Delete a recipe from the server
 recipesCommand _ ["delete"]            = putStrLn "ERROR: missing recipe name"
@@ -199,6 +197,23 @@ recipesCommand ctx ("tag":recipe:_) = tagRecipe ctx recipe >>= \r -> do
     printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
     response r = fromJust $ decodeApiResponse r
     printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ arjErrors resp
+
+-- | recipes changes <recipe-name>
+-- Show the changes to the selected recipes
+-- TODO How to support offset and limit? Defaults to 0, 20
+recipesCommand _ ["changes"]      = putStrLn "ERROR: missing recipe name(s)"
+recipesCommand ctx ("changes":xs) = changesRecipes ctx (intercalate "," xs) >>= \r -> do
+    j <- asValue $ fromJust r
+
+    printJSON j
+    printErrors $ response $ fromJust r
+
+    -- TODO Print a nicely formatted summary of the changes
+  where
+    isJSONOutput = optJsonOutput $ ctxOptions ctx
+    printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
+    response r = fromJust $ decodeRecipesChangesResponse r
+    printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ rcrErrors resp
 
 recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
 recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"
