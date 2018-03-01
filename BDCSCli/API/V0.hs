@@ -19,6 +19,8 @@
 
 module BDCSCli.API.V0(listRecipes,
                       infoRecipes,
+                      changesRecipes,
+                      decodeRecipesChangesResponse,
                       deleteRecipe,
                       depsolveRecipes,
                       freezeRecipeToml,
@@ -36,7 +38,8 @@ module BDCSCli.API.V0(listRecipes,
                       recipesFrozenList,
                       getDepNEVRAList,
                       ApiResponseJSON(..),
-                      ApiErrorDetail(..),
+                      RecipesAPIError(..),
+                      RecipesChangesResponse(..),
                       Recipe(..),
                       RecipeModule(..))
   where
@@ -90,6 +93,10 @@ deleteRecipe CommandCtx{..} recipe = deleteUrl ctxSession $ apiUrl ctxOptions "r
 tagRecipe :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
 tagRecipe CommandCtx{..} recipe = postUrl ctxSession (apiUrl ctxOptions "recipes/tag/" ++ recipe) ""
 
+-- | Get the changes to the list of recipes
+changesRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+changesRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "recipes/changes/" ++ recipes
+
 -- | Request a list of the available modules from the API server
 listModules :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
 listModules CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "modules/list"
@@ -110,7 +117,7 @@ infoProjects CommandCtx{..} projects = getUrl ctxSession $ apiUrl ctxOptions "pr
 -- | API Status response with possible error messages
 data ApiResponseJSON = ApiResponseJSON
     { arjStatus :: Bool
-    , arjErrors :: [ApiErrorDetail]
+    , arjErrors :: [RecipesAPIError]
     } deriving Show
 
 instance FromJSON ApiResponseJSON where
@@ -125,22 +132,29 @@ instance ToJSON ApiResponseJSON where
     , "errors" .= arjErrors
     ]
 
--- | Error message for a specific recipe
-data ApiErrorDetail = ApiErrorDetail
-    { aedRecipe :: String
-    , aedMsg    :: String
-    } deriving Show
+-- | RecipesAPIError is used to report errors with the /recipes/ routes
+--
+-- This is converted to a JSON error response that is used in the API responses
+--
+-- > {
+-- >     "recipe": "unknown-recipe",
+-- >     "msg": "unknown-recipe.toml is not present on branch master"
+-- > }
+data RecipesAPIError = RecipesAPIError
+    { raeRecipe  :: String
+    , raeMsg     :: String
+    } deriving (Eq, Show)
 
-instance FromJSON ApiErrorDetail where
-  parseJSON = withObject "API Error Detail" $ \o -> do
-    aedRecipe <- o .: "recipe"
-    aedMsg    <- o .: "msg"
-    return ApiErrorDetail{..}
+instance FromJSON RecipesAPIError where
+  parseJSON = withObject "API Error" $ \o -> do
+    raeRecipe <- o .: "recipe"
+    raeMsg    <- o .: "msg"
+    return RecipesAPIError{..}
 
-instance ToJSON ApiErrorDetail where
-  toJSON ApiErrorDetail{..} = object
-    [ "recipe" .= aedRecipe
-    , "msg"    .= aedMsg
+instance ToJSON RecipesAPIError where
+  toJSON RecipesAPIError{..} = object
+    [ "recipe".= raeRecipe
+    , "msg"   .= raeMsg
     ]
 
 -- | Convert the server response into data structures
@@ -264,6 +278,81 @@ instance ToJSON PackageNEVRA where
       , "version" .= pnVersion
       , "release" .= pnRelease
       , "arch" .= pnArch ]
+
+-- TODO Maybe somehow get these from bdcs-api?
+-- | File commit details
+data CommitDetails = CommitDetails
+    { cdCommit    :: String                                             -- ^ Hash string
+    , cdTime      :: String                                             -- ^ Timestamp in ISO 8601 format
+    , cdMessage   :: String                                             -- ^ Commit message, separated by \n
+    , cdRevision  :: Maybe Int                                          -- ^ Recipe revision number
+    } deriving (Show, Eq)
+
+instance FromJSON CommitDetails where
+  parseJSON = withObject "/recipes/info response" $ \o -> do
+    cdCommit   <- o .: "commit"
+    cdTime     <- o .: "time"
+    cdMessage  <- o .: "message"
+    cdRevision <- o .: "revision"
+    return CommitDetails{..}
+
+instance ToJSON CommitDetails where
+  toJSON CommitDetails{..} = object
+    [ "commit"   .= cdCommit
+    , "time"     .= cdTime
+    , "message"  .= cdMessage
+    , "revision" .= cdRevision
+    ]
+
+-- | Details about commits to a recipe
+data RecipeChanges = RecipeChanges
+    { rcName      :: String                                             -- ^ Recipe name
+    , rcChange    :: [CommitDetails]                                    -- ^ Details of the commit
+    , rcTotal     :: Int                                                -- ^ Total number of commits
+    } deriving (Show, Eq)
+
+instance FromJSON RecipeChanges where
+  parseJSON = withObject "recipe changes" $ \o -> do
+    rcName   <- o .: "name"
+    rcChange <- o .: "change"
+    rcTotal  <- o .: "total"
+    return RecipeChanges{..}
+
+instance ToJSON RecipeChanges where
+  toJSON RecipeChanges{..} = object
+    [ "name"   .= rcName
+    , "change" .= rcChange
+    , "total"  .= rcTotal
+    ]
+
+-- The JSON response for /recipes/changes
+data RecipesChangesResponse = RecipesChangesResponse
+    { rcrRecipes  :: [RecipeChanges]                                    -- ^ Changes for each recipe
+    , rcrErrors   :: [RecipesAPIError]                                  -- ^ Any errors for the requested changes
+    , rcrOffset   :: Int                                                -- ^ Pagination offset
+    , rcrLimit    :: Int                                                -- ^ Pagination limit
+    } deriving (Show, Eq)
+
+instance FromJSON RecipesChangesResponse where
+  parseJSON = withObject "/recipes/changes/ response" $ \o -> do
+    rcrRecipes <- o .: "recipes"
+    rcrErrors  <- o .: "errors"
+    rcrOffset  <- o .: "offset"
+    rcrLimit   <- o .: "limit"
+    return RecipesChangesResponse{..}
+
+instance ToJSON RecipesChangesResponse where
+  toJSON RecipesChangesResponse{..} = object
+    [ "recipes" .= rcrRecipes
+    , "errors" .= rcrErrors
+    , "offset" .= rcrOffset
+    , "limit"  .= rcrLimit
+    ]
+
+-- | Convert the server response into the RecipesChangesResponse record
+decodeRecipesChangesResponse :: Response C8.ByteString -> Maybe RecipesChangesResponse
+decodeRecipesChangesResponse resp = decode $ resp ^. responseBody
+
 
 --
 -- Functions for manipulating/extracting the API data
