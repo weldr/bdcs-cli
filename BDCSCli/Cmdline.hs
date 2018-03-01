@@ -95,6 +95,7 @@ helpText = "\
 \          freeze show <recipe,...> Display the frozen recipe in TOML format.\n\
 \          freeze save <recipe,...> Save the frozen recipe to a file, <recipe-name>.frozen.toml.\n\
 \          tag <recipe>             Tag the most recent recipe commit as a release.\n\
+\          workspace <recipe>       Push the recipe TOML to the temporary workspace storage.\n\
 \  modules list                     List the available modules.\n\
 \  projects list                    List the available projects.\n\
 \\n"
