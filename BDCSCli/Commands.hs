@@ -206,14 +206,14 @@ recipesCommand ctx ("changes":xs) = changesRecipes ctx (intercalate "," xs) >>= 
     j <- asValue $ fromJust r
 
     printJSON j
+    printChanges $ response $ fromJust r
     printErrors $ response $ fromJust r
-
-    -- TODO Print a nicely formatted summary of the changes
   where
     isJSONOutput = optJsonOutput $ ctxOptions ctx
     printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
     response r = fromJust $ decodeRecipesChangesResponse r
     printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ rcrErrors resp
+    printChanges resp = unless isJSONOutput $ mapM_ putStrLn $ prettyRecipeChanges $ rcrRecipes resp
 
 recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
 recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"

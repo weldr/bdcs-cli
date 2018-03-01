@@ -34,6 +34,7 @@ module BDCSCli.API.V0(listRecipes,
                       decodeApiResponse,
                       decodeDepsolve,
                       decodeFreeze,
+                      prettyRecipeChanges,
                       recipesDepsList,
                       recipesFrozenList,
                       getDepNEVRAList,
@@ -44,16 +45,16 @@ module BDCSCli.API.V0(listRecipes,
                       RecipeModule(..))
   where
 
-import Control.Lens ((^.))
-import Data.Aeson
+import           Control.Lens ((^.))
+import           Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
-import Data.Maybe(fromMaybe)
-import Network.Wreq
-import Text.Printf(printf)
+import           Data.Maybe(fromJust, fromMaybe, isJust)
+import           Network.Wreq
+import           Text.Printf(printf)
 
-import BDCSCli.CommandCtx(CommandCtx(..))
-import BDCSCli.URL(apiUrl, getUrl, postUrl, deleteUrl)
+import           BDCSCli.CommandCtx(CommandCtx(..))
+import           BDCSCli.URL(apiUrl, getUrl, postUrl, deleteUrl)
 
 -- | Request the list of recipes from the API server
 listRecipes :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
@@ -304,6 +305,20 @@ instance ToJSON CommitDetails where
     , "revision" .= cdRevision
     ]
 
+-- | Return Pretty commit details
+prettyCommitDetails :: Int -> CommitDetails -> String
+prettyCommitDetails indent CommitDetails{..} =
+    spaces ++ timestamp ++ hash ++ revision ++ "\n" ++ spaces ++ message ++ "\n\n"
+  where
+    spaces = concat . take indent $ repeat " "
+    hash = "  " ++ cdCommit
+    revision = if isJust cdRevision
+               then revisionString
+               else ""
+    revisionString = printf "  revision %d" $ fromJust cdRevision
+    timestamp = cdTime
+    message = cdMessage
+
 -- | Details about commits to a recipe
 data RecipeChanges = RecipeChanges
     { rcName      :: String                                             -- ^ Recipe name
@@ -353,6 +368,12 @@ instance ToJSON RecipesChangesResponse where
 decodeRecipesChangesResponse :: Response C8.ByteString -> Maybe RecipesChangesResponse
 decodeRecipesChangesResponse resp = decode $ resp ^. responseBody
 
+-- | Pretty output of the RecipeChanges
+prettyRecipeChanges :: [RecipeChanges] -> [String]
+prettyRecipeChanges recipes =
+    [ recipeName ++ "\n" ++ concatMap (prettyCommitDetails 4) changes
+    | RecipeChanges { rcName = recipeName, rcChange = changes } <- recipes
+    ]
 
 --
 -- Functions for manipulating/extracting the API data
