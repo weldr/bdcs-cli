@@ -71,6 +71,33 @@ getErrors errors =
     | RecipesAPIError { raeRecipe = recipeName, raeMsg = msg } <- errors
     ]
 
+-- | Print the error messages from an API response
+printErrors :: CommandCtx -> [RecipesAPIError] -> IO ()
+printErrors ctx errors = unless (isJSONOutput ctx) $ mapM_ putStrLn $ getErrors errors
+
+-- | Return true if JSON output has been selected
+isJSONOutput :: CommandCtx -> Bool
+isJSONOutput ctx = optJsonOutput $ ctxOptions ctx
+
+-- | Pretty print the JSON from the response
+printJSON :: CommandCtx -> Response Value -> IO ()
+printJSON ctx v = when (isJSONOutput ctx) $ putStrLn $ prettyJson $ v ^. responseBody
+
+-- | Handle printing the errors from an API response
+-- optionally print the raw JSON
+handleAPIResponse :: CommandCtx -> Maybe (Response C8.ByteString) -> IO ()
+handleAPIResponse ctx r = do
+    j <- asValue $ fromJust r
+
+    printJSON ctx j
+    printErrors ctx errors
+
+    -- TODO Return a status to use for the exit code
+  where
+    response = fromJust $ decodeApiResponse $ fromJust r
+    errors = arjErrors response
+
+
 -- | Process the compose types command
 -- Prints a list of the supported compose types
 composeCommand :: CommandCtx -> [String] -> IO ()
@@ -102,7 +129,7 @@ composeCommand _    _      = putStrLn "ERROR: Unknown compose type"
 recipesCommand :: CommandCtx -> [String] -> IO ()
 recipesCommand ctx ("list":_) = listRecipes ctx >>= \r -> do
     j <- asValue $ fromJust r
-    if optJsonOutput $ ctxOptions ctx
+    if isJSONOutput ctx
         then putStrLn $ prettyJson $ j ^. responseBody
         else putStrLn $ "Recipes: " ++ humanRecipesList j
 
@@ -126,7 +153,7 @@ recipesCommand ctx ("save":xs) = mapM_ saveRecipe $ argify xs
 -- Print the list of package versions needed for the recipe list
 recipesCommand ctx ("depsolve":xs) = depsolveRecipes ctx (intercalate "," xs) >>= \r -> do
     j <- asValue $ fromJust r
-    if optJsonOutput $ ctxOptions ctx
+    if isJSONOutput ctx
         then putStrLn $ prettyJson $ j ^. responseBody
         else do
             let deps = decodeDepsolve $ fromJust r
@@ -152,51 +179,19 @@ recipesCommand ctx ("workspace":xs) = mapM_ pushRecipe $ argify xs
             putStrLn $ printf "ERROR: Missing file %s" name
             exitFailure
         toml <- readFile name
-        workspaceRecipes ctx toml >>= \r -> do
-            -- XXX YES THIS IS HORRIBLE
-            j <- asValue $ fromJust r
-
-            printJSON j
-            printErrors $ response $ fromJust r
-
-            -- TODO Return a status to use for the exit code
-          where
-            isJSONOutput = optJsonOutput $ ctxOptions ctx
-            printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
-            response r = fromJust $ decodeApiResponse r
-            printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ arjErrors resp
+        workspaceRecipes ctx toml >>= \r -> handleAPIResponse ctx r
 
 -- | recipes delete <recipe-name>
 -- Delete a recipe from the server
 recipesCommand _ ["delete"]            = putStrLn "ERROR: missing recipe name"
-recipesCommand ctx ("delete":recipe:_) = deleteRecipe ctx recipe >>= \r -> do
-    j <- asValue $ fromJust r
-
-    printJSON j
-    printErrors $ response $ fromJust r
-
-    -- TODO Return a status to use for the exit code
-  where
-    isJSONOutput = optJsonOutput $ ctxOptions ctx
-    printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
-    response r = fromJust $ decodeApiResponse r
-    printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ arjErrors resp
+recipesCommand ctx ("delete":recipe:_) =
+    deleteRecipe ctx recipe >>= \r -> handleAPIResponse ctx r
 
 -- | recipes tag <recipe-name>
 -- Tag the most recent recipe commit as a release
 recipesCommand _ ["tag"]            = putStrLn "ERROR: missing recipe name"
-recipesCommand ctx ("tag":recipe:_) = tagRecipe ctx recipe >>= \r -> do
-    j <- asValue $ fromJust r
-
-    printJSON j
-    printErrors $ response $ fromJust r
-
-    -- TODO Return a status to use for the exit code
-  where
-    isJSONOutput = optJsonOutput $ ctxOptions ctx
-    printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
-    response r = fromJust $ decodeApiResponse r
-    printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ arjErrors resp
+recipesCommand ctx ("tag":recipe:_) =
+    tagRecipe ctx recipe >>= \r -> handleAPIResponse ctx r
 
 -- | recipes changes <recipe-name>
 -- Show the changes to the selected recipes
@@ -205,15 +200,13 @@ recipesCommand _ ["changes"]      = putStrLn "ERROR: missing recipe name(s)"
 recipesCommand ctx ("changes":xs) = changesRecipes ctx (intercalate "," xs) >>= \r -> do
     j <- asValue $ fromJust r
 
-    printJSON j
-    printChanges $ response $ fromJust r
-    printErrors $ response $ fromJust r
+    printJSON ctx j
+    printChanges $ response r
+    printErrors ctx $ errors r
   where
-    isJSONOutput = optJsonOutput $ ctxOptions ctx
-    printJSON j = when isJSONOutput $ putStrLn $ prettyJson $ j ^. responseBody
-    response r = fromJust $ decodeRecipesChangesResponse r
-    printErrors resp = unless isJSONOutput $ mapM_ putStrLn $ getErrors $ rcrErrors resp
-    printChanges resp = unless isJSONOutput $ mapM_ putStrLn $ prettyRecipeChanges $ rcrRecipes resp
+    response r = fromJust $ decodeRecipesChangesResponse $ fromJust r
+    errors r = rcrErrors $ response r
+    printChanges resp = unless (isJSONOutput ctx) $ mapM_ putStrLn $ prettyRecipeChanges $ rcrRecipes resp
 
 recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
 recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"
