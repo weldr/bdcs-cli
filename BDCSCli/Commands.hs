@@ -94,7 +94,7 @@ handleAPIResponse ctx r = do
 
     -- TODO Return a status to use for the exit code
   where
-    response = fromJust $ decodeApiResponse $ fromJust r
+    response = fromJust $ decodeAPIResponse $ fromJust r
     errors = arjErrors response
 
 
@@ -214,6 +214,20 @@ recipesCommand _ ["undo"]                   = putStrLn "ERROR: Missing recipe-na
 recipesCommand _ ["undo", _]                = putStrLn "ERROR: Missing commit hash"
 recipesCommand ctx ("undo":recipe:commit:_) =
     undoRecipe ctx recipe commit >>= \r -> handleAPIResponse ctx r
+
+-- | recipe diff <recipe-name> <from-commit> <to-commit>
+-- Show the differences between 2 versions of the recipe
+recipesCommand _ ["diff"]                     = putStrLn "ERROR: Missing recipe-name, from-commit, and to-commit"
+recipesCommand _ ["diff", _]                  = putStrLn "ERROR: Missing from-commit, and to-commit"
+recipesCommand _ ["diff", _, _]               = putStrLn "ERROR: Missing to-commit"
+recipesCommand ctx ("diff":recipe:from:to:_)  = diffRecipe ctx recipe from to >>= \r -> do
+    j <- asValue $ fromJust r
+
+    printJSON ctx j
+    printDiff $ response r
+  where
+    response r = fromJust $ decodeRecipesDiffResponse $ fromJust r
+    printDiff resp = unless (isJSONOutput ctx) $ mapM_ putStrLn $ prettyRecipeDiff $ rdrDiff resp
 
 recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
 recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"

@@ -17,34 +17,43 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module BDCSCli.API.V0(listRecipes,
-                      infoRecipes,
-                      changesRecipes,
-                      decodeRecipesChangesResponse,
-                      deleteRecipe,
-                      depsolveRecipes,
-                      freezeRecipeToml,
-                      freezeRecipes,
-                      newRecipes,
-                      workspaceRecipes,
-                      tagRecipe,
-                      listModules,
-                      listProjects,
-                      infoProjects,
-                      decodeApiResponse,
-                      decodeDepsolve,
-                      decodeFreeze,
-                      prettyRecipeChanges,
-                      recipesDepsList,
-                      recipesFrozenList,
-                      getDepNEVRAList,
-                      undoRecipe,
-                      ApiResponseJSON(..),
-                      RecipesAPIError(..),
-                      RecipesChangesResponse(..),
-                      Recipe(..),
-                      RecipeModule(..))
-  where
+module BDCSCli.API.V0(
+    changesRecipes,
+    decodeDepsolve,
+    decodeFreeze,
+    decodeRecipesChangesResponse,
+    deleteRecipe,
+    depsolveRecipes,
+    diffRecipe,
+    freezeRecipes,
+    freezeRecipeToml,
+    getDepNEVRAList,
+    infoProjects,
+    infoRecipes,
+    listModules,
+    listProjects,
+    listRecipes,
+    newRecipes,
+    prettyRecipeChanges,
+    recipesDepsList,
+    recipesFrozenList,
+    tagRecipe,
+    undoRecipe,
+    workspaceRecipes,
+
+    Recipe(..),
+    RecipeModule(..),
+    RecipesChangesResponse(..),
+    RecipesDiffResponse(..),
+
+-- re-export some things imported from elsewhere
+    decodeAPIResponse,
+    decodeRecipesDiffResponse,
+    prettyRecipeDiff,
+
+    APIResponseJSON(..),
+    RecipesAPIError(..)
+) where
 
 import           Control.Lens ((^.))
 import           Data.Aeson
@@ -56,6 +65,10 @@ import           Text.Printf(printf)
 
 import           BDCSCli.CommandCtx(CommandCtx(..))
 import           BDCSCli.URL(apiUrl, getUrl, postUrl, deleteUrl)
+import           BDCSCli.API.Types.APIResponseJSON
+import           BDCSCli.API.Types.Recipe
+import           BDCSCli.API.Types.RecipeDiff
+import           BDCSCli.API.Types.RecipesAPIError
 
 -- | Request the list of recipes from the API server
 listRecipes :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
@@ -103,6 +116,10 @@ changesRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "r
 undoRecipe :: CommandCtx -> String -> String -> IO (Maybe (Response BSL.ByteString))
 undoRecipe CommandCtx{..} recipe commit = postUrl ctxSession (apiUrl ctxOptions "recipes/undo/" ++ recipe ++ "/" ++ commit) ""
 
+-- | Get the differences between 2 recipe commits
+diffRecipe :: CommandCtx -> String -> String -> String -> IO (Maybe (Response BSL.ByteString))
+diffRecipe CommandCtx{..} recipe from_commit to_commit = getUrl ctxSession $ apiUrl ctxOptions "recipes/diff/" ++ recipe ++ "/" ++ from_commit ++ "/" ++ to_commit
+
 -- | Request a list of the available modules from the API server
 listModules :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
 listModules CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "modules/list"
@@ -119,53 +136,6 @@ infoProjects CommandCtx{..} projects = getUrl ctxSession $ apiUrl ctxOptions "pr
 --
 -- JSON Data types for parsing the BDCS API responses
 --
-
--- | API Status response with possible error messages
-data ApiResponseJSON = ApiResponseJSON
-    { arjStatus :: Bool
-    , arjErrors :: [RecipesAPIError]
-    } deriving Show
-
-instance FromJSON ApiResponseJSON where
-  parseJSON = withObject "API Response JSON" $ \o -> do
-    arjStatus <- o .: "status"
-    arjErrors <- o .: "errors"
-    return ApiResponseJSON{..}
-
-instance ToJSON ApiResponseJSON where
-  toJSON ApiResponseJSON{..} = object
-    [ "status" .= arjStatus
-    , "errors" .= arjErrors
-    ]
-
--- | RecipesAPIError is used to report errors with the /recipes/ routes
---
--- This is converted to a JSON error response that is used in the API responses
---
--- > {
--- >     "recipe": "unknown-recipe",
--- >     "msg": "unknown-recipe.toml is not present on branch master"
--- > }
-data RecipesAPIError = RecipesAPIError
-    { raeRecipe  :: String
-    , raeMsg     :: String
-    } deriving (Eq, Show)
-
-instance FromJSON RecipesAPIError where
-  parseJSON = withObject "API Error" $ \o -> do
-    raeRecipe <- o .: "recipe"
-    raeMsg    <- o .: "msg"
-    return RecipesAPIError{..}
-
-instance ToJSON RecipesAPIError where
-  toJSON RecipesAPIError{..} = object
-    [ "recipe".= raeRecipe
-    , "msg"   .= raeMsg
-    ]
-
--- | Convert the server response into data structures
-decodeApiResponse :: Response C8.ByteString -> Maybe ApiResponseJSON
-decodeApiResponse resp = decode $ resp ^. responseBody
 
 
 newtype DependencyJSON =
@@ -214,49 +184,6 @@ instance FromJSON FreezeJSON where
 instance ToJSON FreezeJSON where
   toJSON FreezeJSON{..} = object [
     "recipes" .= fjRecipes ]
-
-
-data Recipe =
-    Recipe { rName              :: String
-           , rVersion           :: Maybe String
-           , rDescription       :: String
-           , rPackages          :: [RecipeModule]
-           , rModules           :: [RecipeModule]
-    } deriving (Eq, Show)
-
-instance FromJSON Recipe where
-  parseJSON = withObject "recipe" $ \o -> do
-      rName        <- o .:  "name"
-      rVersion     <- o .:? "version"
-      rDescription <- o .:  "description"
-      rPackages    <- o .:? "packages" .!= []
-      rModules     <- o .:? "modules" .!= []
-      return Recipe{..}
-
-instance ToJSON Recipe where
-  toJSON Recipe{..} = object [
-        "name"        .= rName
-      , "version"     .= fromMaybe "" rVersion
-      , "description" .= rDescription
-      , "packages"    .= rPackages
-      , "rModules"    .= rModules ]
-
-
-data RecipeModule =
-    RecipeModule { rmName         :: String
-                 , rmVersion      :: String
-    } deriving (Eq, Show)
-
-instance FromJSON RecipeModule where
-  parseJSON = withObject "recipe module" $ \o -> do
-      rmName    <- o .: "name"
-      rmVersion <- o .: "version"
-      return RecipeModule{..}
-
-instance ToJSON RecipeModule where
-  toJSON RecipeModule{..} = object [
-        "name"    .= rmName
-      , "version" .= rmVersion ]
 
 
 -- | Package build details

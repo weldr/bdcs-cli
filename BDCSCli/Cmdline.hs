@@ -88,6 +88,9 @@ helpText = "\
 \  recipes list                     List the names of the available recipes.\n\
 \          show <recipe,...>        Display the recipe in TOML format.\n\
 \          changes <recipe,...>     Display the changes for each recipe.\n\
+\          diff <recipe-name>       Display the differences between 2 versions of a recipe.\n\
+\               <from-commit>       Commit hash or NEWEST\n\
+\               <to-commit>         Commit hash, NEWEST, or WORKSPACE\n\
 \          save <recipe,...>        Save the recipe to a file, <recipe-name>.toml\n\
 \          delete <recipe>          Delete a recipe from the server\n\
 \          depsolve <recipe,...>    Display the packages needed to install the recipe.\n\

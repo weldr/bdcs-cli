@@ -17,6 +17,10 @@ cabal-version:          >=1.10
 
 library
   exposed-modules:      BDCSCli.API.V0
+                        BDCSCli.API.Types.APIResponseJSON
+                        BDCSCli.API.Types.Recipe
+                        BDCSCli.API.Types.RecipeDiff
+                        BDCSCli.API.Types.RecipesAPIError
                         BDCSCli.Cmdline
                         BDCSCli.Commands
                         BDCSCli.CommandCtx
@@ -62,6 +66,7 @@ test-suite spec
   hs-source-dirs:       tests
   ghc-options:          -Wall
   build-depends:        base,
+                        aeson,
                         hspec,
                         text,
                         BDCSCli
