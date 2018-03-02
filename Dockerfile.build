@@ -1,13 +1,13 @@
 FROM fedora:27
 
 RUN dnf -y install python3-dnf-plugins-core && \
-    dnf -y copr enable @weldr/bdcs-haskell-deps && \
-    rpm --import https://copr-be.cloud.fedoraproject.org/results/@weldr/bdcs-haskell-deps/pubkey.gpg && \
+    dnf -y copr enable @weldr/bdcs && \
+    rpm --import https://copr-be.cloud.fedoraproject.org/results/@weldr/bdcs/pubkey.gpg && \
     dnf -y install sudo cabal-install cabal-rpm sqlite python3-toml \
                    https://kojipkgs.fedoraproject.org/packages/python-parameterized/0.6.1/2.fc28/noarch/python3-parameterized-0.6.1-2.fc28.noarch.rpm \
                    gobject-introspection-devel \
                    ghc-haskell-gi-devel libgit2-glib-devel \
-                   ostree beakerlib
+                   ostree beakerlib bdcs
 
 # source is bind-mounted here
 WORKDIR /bdcs-cli
