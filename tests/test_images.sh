@@ -7,17 +7,11 @@
 # exits on error but doesn't clean up
 set -e
 
-EXPORT="./bdcs-export"
-BDCS_CLI="./bdcs-cli"
+# needs bdcs.rpm installed
+BDCS_CLI="./dist/build/bdcs-cli/bdcs-cli"
 
 METADATA_DB="metadata.db"
 METADATA_REPO="cs.repo/"
-
-
-# download precompiled binaries if not available
-[ -f "./dist/build/bdcs-cli/bdcs-cli" ] && cp ./dist/build/bdcs-cli/bdcs-cli .
-[ -f "$BDCS_CLI" ] || curl -o "$BDCS_CLI" https://s3.amazonaws.com/weldr/bdcs-cli && chmod a+x "$BDCS_CLI"
-[ -f "$EXPORT" ] || curl -o "$EXPORT" https://s3.amazonaws.com/weldr/bdcs-export && chmod a+x "$EXPORT"
 
 
 # create the database if it doesn't exist
