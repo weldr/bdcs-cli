@@ -7,7 +7,7 @@ RUN dnf -y install python3-dnf-plugins-core && \
                    https://kojipkgs.fedoraproject.org/packages/python-parameterized/0.6.1/2.fc28/noarch/python3-parameterized-0.6.1-2.fc28.noarch.rpm \
                    gobject-introspection-devel \
                    ghc-haskell-gi-devel libgit2-glib-devel \
-                   ostree beakerlib bdcs
+                   ostree beakerlib bdcs libcurl-devel
 
 # source is bind-mounted here
 WORKDIR /bdcs-cli
