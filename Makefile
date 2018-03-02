@@ -51,7 +51,9 @@ test-in-docker: Dockerfile.build
 
 ci: test-in-docker
 
-test-images:
+# this is executed on a Fedora 27 system in Jenkins
+# so first compile the binaries and then run image build tests
+test-images: bdcs-cli
 	./tests/test_images.sh
 
 ci_after_success:
