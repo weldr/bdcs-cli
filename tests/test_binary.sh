@@ -21,7 +21,7 @@ rlJournalStart
             "bdcs-cli"
 
         rlAssertEquals "bdcs-cli help returns the help text" \
-            "`$bdcscli help 2>&1 | wc -l`" 21
+            "`$bdcscli help 2>&1 | wc -l`" 29
     rlPhaseEnd
 
 rlJournalEnd
