@@ -15,12 +15,15 @@
 -- You should have received a copy of the GNU General Public License
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
 
 module BDCSCli.APITypesSpec(main, spec)
   where
 
-import           Data.Aeson(decode, toJSON)
+import           Data.Aeson(decode, fromJSON, toJSON, Result(..))
+import qualified Data.ByteString.Lazy as BSL
 import           Data.Maybe(fromJust)
+import           Data.String.QQ
 import           Test.Hspec
 
 import           BDCSCli.Recipe(RecipeModule(..))
@@ -49,12 +52,27 @@ exampleDiff =
       }
     ]
 
+exampleDiffJSON :: BSL.ByteString
+exampleDiffJSON = [s|[
+{"old": {"Description": "This is the old description"},
+ "new": {"Description": "The New and Improved description"}},
+{"old": {"Module": {"name": "tmux", "version": "2.2"}},
+ "new": null},
+{"old": null,
+ "new": {"Package": {"name": "vim", "version": "8.0.*"}}},
+{"old": {"Package": {"name": "bash", "version": "1.0"}},
+ "new": {"Package": {"name": "bash", "version": "4.4.*"}}}
+]|]
+
 main :: IO ()
 main = hspec spec
 
 
 spec :: Spec
-spec = do
-    describe "RecipeDiff to JSON tests" $ do
-        it "Convert List of RecipeDiffEntry records to JSON" $ do
-            toJSON exampleDiff `shouldBe` fromJust (decode "[]")
+spec =
+    describe "RecipeDiff JSON tests" $ do
+        it "Convert List of RecipeDiffEntry records to JSON" $
+            toJSON exampleDiff `shouldBe` fromJust (decode exampleDiffJSON)
+
+        it "Convert JSON List of RecipeDiffEntry JSON to Records" $
+            fromJSON (fromJust $ decode exampleDiffJSON) `shouldBe` Success exampleDiff
