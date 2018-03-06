@@ -1,0 +1,7 @@
+# HLint configuration file
+# https://github.com/ndmitchell/hlint
+##########################
+
+- ignore: {name: Use uncurry}
+- ignore: {name: Use newtype instead of data}
+- ignore: {name: Eta reduce}
