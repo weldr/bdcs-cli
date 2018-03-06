@@ -39,7 +39,7 @@ test-in-docker: Dockerfile.build
 
 	# run the API backend which provides depsolving
 	# metdata.db will be created after all unit tests pass
-	[ "$(API_CONTAINER_RUNNING)" == "1" ] || sudo docker run -d --name api -p 4000:4000 -v `pwd`:/mddb --security-opt label=disable --network welder welder/bdcs-api-rs:latest
+	[ "$(API_CONTAINER_RUNNING)" == "1" ] || sudo docker run -d --name api -p 4000:4000 -v `pwd`:/mddb --security-opt label=disable --network welder welder/bdcs-api-img:latest
 
 	# building the docker image and execute the tests
 	sudo docker build -t $(ORG_NAME)/bdcs-cli:latest -f $< .
