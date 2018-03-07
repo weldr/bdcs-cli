@@ -28,7 +28,7 @@ METADATA_REPO="cs.repo/"
 # later this will be replaced with the depsolver from bdcs library
 if [ -z "$START_API_EXTERNALLY" ]; then
     if [ `sudo docker ps | grep -c bdcs_api` -lt 1 ]; then
-        sudo docker run -d --rm --name bdcs_api -p 4000:4000 -v `pwd`:/mddb --security-opt label=disable welder/bdcs-api-img:latest
+        sudo docker run -d --rm --name bdcs_api -p 4000:4000 -v `pwd`:/mddb -v `pwd`/examples/recipes:/recipes --security-opt label=disable welder/bdcs-api-img:latest
         sleep 5
     fi
 else
