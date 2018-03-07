@@ -13,7 +13,7 @@ rlJournalStart
             sudo docker ps | grep api
             if [ $? -ne 0 ]; then
                 [ -f "$METADATA_DB" ] || ./tests/bin/import-metadata
-                sudo docker run -d --rm --name api -p 4000:4000 -v `pwd`:/mddb --security-opt label=disable welder/bdcs-api-img:latest
+                sudo docker run -d --rm --name api -p 4000:4000 -v `pwd`:/mddb -v `pwd`/examples/recipes:/recipes --security-opt label=disable welder/bdcs-api-img:latest
             fi
         fi
     rlPhaseEnd
