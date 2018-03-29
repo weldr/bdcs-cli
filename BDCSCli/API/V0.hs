@@ -72,53 +72,53 @@ import           BDCSCli.API.Types.RecipesAPIError
 
 -- | Request the list of recipes from the API server
 listRecipes :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
-listRecipes CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "recipes/list"
+listRecipes CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "blueprints/list"
 
 -- | Request the TOML copy of the Recipe from the API server
 infoRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
-infoRecipes CommandCtx{..} recipe = getUrl ctxSession $ apiUrl ctxOptions "recipes/info/" ++ recipe ++ "?format=toml"
+infoRecipes CommandCtx{..} recipe = getUrl ctxSession $ apiUrl ctxOptions "blueprints/info/" ++ recipe ++ "?format=toml"
 
 -- | Request the dependecies for the recipe from the APO server
 depsolveRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
-depsolveRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "recipes/depsolve/" ++ recipes
+depsolveRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "blueprints/depsolve/" ++ recipes
 
 -- | Request the frozen recipe from the API server in TOML format
 freezeRecipeToml :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
-freezeRecipeToml CommandCtx{..} recipe = getUrl ctxSession $ apiUrl ctxOptions "recipes/freeze/" ++ recipe ++ "?format=toml"
+freezeRecipeToml CommandCtx{..} recipe = getUrl ctxSession $ apiUrl ctxOptions "blueprints/freeze/" ++ recipe ++ "?format=toml"
 
 -- | Request the frozen recipe from the API server in JSON format
 freezeRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
-freezeRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "recipes/freeze/" ++ recipes
+freezeRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "blueprints/freeze/" ++ recipes
 
 {-# ANN newRecipes ("HLint: ignore Eta reduce"::String) #-}
 -- | POST a new TOML recipe to the API server
 newRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
-newRecipes CommandCtx{..} bodyStr = postUrl ctxSession (apiUrl ctxOptions "recipes/new") bodyStr
+newRecipes CommandCtx{..} bodyStr = postUrl ctxSession (apiUrl ctxOptions "blueprints/new") bodyStr
 
 {-# ANN workspaceRecipes ("HLint: ignore Eta reduce"::String) #-}
 -- | POST a new TOML recipe to the API server's workspace storage
 workspaceRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
-workspaceRecipes CommandCtx{..} bodyStr = postUrl ctxSession (apiUrl ctxOptions "recipes/workspace") bodyStr
+workspaceRecipes CommandCtx{..} bodyStr = postUrl ctxSession (apiUrl ctxOptions "blueprints/workspace") bodyStr
 
 -- | DELETE a recipe
 deleteRecipe :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
-deleteRecipe CommandCtx{..} recipe = deleteUrl ctxSession $ apiUrl ctxOptions "recipes/delete/" ++ recipe
+deleteRecipe CommandCtx{..} recipe = deleteUrl ctxSession $ apiUrl ctxOptions "blueprints/delete/" ++ recipe
 
 -- | Tag the most recent recipe commit
 tagRecipe :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
-tagRecipe CommandCtx{..} recipe = postUrl ctxSession (apiUrl ctxOptions "recipes/tag/" ++ recipe) ""
+tagRecipe CommandCtx{..} recipe = postUrl ctxSession (apiUrl ctxOptions "blueprints/tag/" ++ recipe) ""
 
 -- | Get the changes to the list of recipes
 changesRecipes :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
-changesRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "recipes/changes/" ++ recipes
+changesRecipes CommandCtx{..} recipes = getUrl ctxSession $ apiUrl ctxOptions "blueprints/changes/" ++ recipes
 
 -- | Undo a commit to a recipe
 undoRecipe :: CommandCtx -> String -> String -> IO (Maybe (Response BSL.ByteString))
-undoRecipe CommandCtx{..} recipe commit = postUrl ctxSession (apiUrl ctxOptions "recipes/undo/" ++ recipe ++ "/" ++ commit) ""
+undoRecipe CommandCtx{..} recipe commit = postUrl ctxSession (apiUrl ctxOptions "blueprints/undo/" ++ recipe ++ "/" ++ commit) ""
 
 -- | Get the differences between 2 recipe commits
 diffRecipe :: CommandCtx -> String -> String -> String -> IO (Maybe (Response BSL.ByteString))
-diffRecipe CommandCtx{..} recipe from_commit to_commit = getUrl ctxSession $ apiUrl ctxOptions "recipes/diff/" ++ recipe ++ "/" ++ from_commit ++ "/" ++ to_commit
+diffRecipe CommandCtx{..} recipe from_commit to_commit = getUrl ctxSession $ apiUrl ctxOptions "blueprints/diff/" ++ recipe ++ "/" ++ from_commit ++ "/" ++ to_commit
 
 -- | Request a list of the available modules from the API server
 listModules :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
@@ -144,12 +144,12 @@ newtype DependencyJSON =
 
 instance FromJSON DependencyJSON where
   parseJSON = withObject "dependency JSON" $ \o -> do
-      djRecipes <- o .: "recipes"
+      djRecipes <- o .: "blueprints"
       return DependencyJSON{..}
 
 instance ToJSON DependencyJSON where
   toJSON DependencyJSON{..} = object [
-        "recipes" .= djRecipes ]
+        "blueprints" .= djRecipes ]
 
 
 data RecipeDeps =
@@ -159,15 +159,15 @@ data RecipeDeps =
     } deriving Show
 
 instance FromJSON RecipeDeps where
-  parseJSON = withObject "recipe deps" $ \o -> do
-      rdRecipe       <- o .: "recipe"
+  parseJSON = withObject "blueprint deps" $ \o -> do
+      rdRecipe       <- o .: "blueprints"
       rdModules      <- o .: "modules"
       rdDependencies <- o .: "dependencies"
       return RecipeDeps{..}
 
 instance ToJSON RecipeDeps where
   toJSON RecipeDeps{..} = object [
-        "recipe"       .= rdRecipe
+        "blueprints"   .= rdRecipe
       , "modules"      .= rdModules
       , "dependencies" .= rdDependencies ]
 
@@ -178,12 +178,12 @@ newtype FreezeJSON =
 
 instance FromJSON FreezeJSON where
   parseJSON = withObject "freeze JSON" $ \o -> do
-    fjRecipes <- o .: "recipes"
+    fjRecipes <- o .: "blueprints"
     return FreezeJSON{..}
 
 instance ToJSON FreezeJSON where
   toJSON FreezeJSON{..} = object [
-    "recipes" .= fjRecipes ]
+    "blueprints" .= fjRecipes ]
 
 
 -- | Package build details
@@ -222,7 +222,7 @@ data CommitDetails = CommitDetails
     } deriving (Show, Eq)
 
 instance FromJSON CommitDetails where
-  parseJSON = withObject "/recipes/info response" $ \o -> do
+  parseJSON = withObject "/blueprints/info response" $ \o -> do
     cdCommit   <- o .: "commit"
     cdTime     <- o .: "time"
     cdMessage  <- o .: "message"
@@ -259,7 +259,7 @@ data RecipeChanges = RecipeChanges
     } deriving (Show, Eq)
 
 instance FromJSON RecipeChanges where
-  parseJSON = withObject "recipe changes" $ \o -> do
+  parseJSON = withObject "blueprint changes" $ \o -> do
     rcName   <- o .: "name"
     rcChange <- o .: "change"
     rcTotal  <- o .: "total"
@@ -272,17 +272,17 @@ instance ToJSON RecipeChanges where
     , "total"  .= rcTotal
     ]
 
--- The JSON response for /recipes/changes
+-- The JSON response for /blueprints/changes
 data RecipesChangesResponse = RecipesChangesResponse
-    { rcrRecipes  :: [RecipeChanges]                                    -- ^ Changes for each recipe
+    { rcrRecipes  :: [RecipeChanges]                                    -- ^ Changes for each blueprint
     , rcrErrors   :: [RecipesAPIError]                                  -- ^ Any errors for the requested changes
     , rcrOffset   :: Int                                                -- ^ Pagination offset
     , rcrLimit    :: Int                                                -- ^ Pagination limit
     } deriving (Show, Eq)
 
 instance FromJSON RecipesChangesResponse where
-  parseJSON = withObject "/recipes/changes/ response" $ \o -> do
-    rcrRecipes <- o .: "recipes"
+  parseJSON = withObject "/blueprints/changes/ response" $ \o -> do
+    rcrRecipes <- o .: "blueprints"
     rcrErrors  <- o .: "errors"
     rcrOffset  <- o .: "offset"
     rcrLimit   <- o .: "limit"
@@ -290,10 +290,10 @@ instance FromJSON RecipesChangesResponse where
 
 instance ToJSON RecipesChangesResponse where
   toJSON RecipesChangesResponse{..} = object
-    [ "recipes" .= rcrRecipes
-    , "errors" .= rcrErrors
-    , "offset" .= rcrOffset
-    , "limit"  .= rcrLimit
+    [ "blueprints" .= rcrRecipes
+    , "errors"     .= rcrErrors
+    , "offset"     .= rcrOffset
+    , "limit"      .= rcrLimit
     ]
 
 -- | Convert the server response into the RecipesChangesResponse record

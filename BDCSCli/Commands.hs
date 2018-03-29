@@ -62,7 +62,7 @@ prettyJson jsonValue = C8.unpack $ encodePretty jsonValue
 -- a, b, c, ...
 humanRecipesList :: Response Value -> String
 humanRecipesList jsonValue = intercalate ", " $ map T.unpack recipes
-  where recipes = jsonValue ^.. responseBody . key "recipes" . values . _String
+  where recipes = jsonValue ^.. responseBody . key "blueprints" . values . _String
 
 -- | Get the error messages from a list of RecipesAPIError
 getErrors :: [RecipesAPIError] -> [String]
@@ -131,7 +131,7 @@ recipesCommand ctx ("list":_) = listRecipes ctx >>= \r -> do
     j <- asValue $ fromJust r
     if isJSONOutput ctx
         then putStrLn $ prettyJson $ j ^. responseBody
-        else putStrLn $ "Recipes: " ++ humanRecipesList j
+        else putStrLn $ "Blueprints: " ++ humanRecipesList j
 
 -- | Process the recipes show command
 -- Print the TOML recipe
@@ -183,20 +183,20 @@ recipesCommand ctx ("workspace":xs) = mapM_ pushRecipe $ argify xs
 
 -- | recipes delete <recipe-name>
 -- Delete a recipe from the server
-recipesCommand _ ["delete"]            = putStrLn "ERROR: missing recipe name"
+recipesCommand _ ["delete"]            = putStrLn "ERROR: missing blueprint name"
 recipesCommand ctx ("delete":recipe:_) =
     deleteRecipe ctx recipe >>= \r -> handleAPIResponse ctx r
 
 -- | recipes tag <recipe-name>
 -- Tag the most recent recipe commit as a release
-recipesCommand _ ["tag"]            = putStrLn "ERROR: missing recipe name"
+recipesCommand _ ["tag"]            = putStrLn "ERROR: missing blueprint name"
 recipesCommand ctx ("tag":recipe:_) =
     tagRecipe ctx recipe >>= \r -> handleAPIResponse ctx r
 
 -- | recipes changes <recipe-name>
 -- Show the changes to the selected recipes
 -- TODO How to support offset and limit? Defaults to 0, 20
-recipesCommand _ ["changes"]      = putStrLn "ERROR: missing recipe name(s)"
+recipesCommand _ ["changes"]      = putStrLn "ERROR: missing blueprint name(s)"
 recipesCommand ctx ("changes":xs) = changesRecipes ctx (intercalate "," xs) >>= \r -> do
     j <- asValue $ fromJust r
 
@@ -210,14 +210,14 @@ recipesCommand ctx ("changes":xs) = changesRecipes ctx (intercalate "," xs) >>= 
 
 -- | recipe undo <recipe-name> <commit>
 -- Revert a recipe to a commit
-recipesCommand _ ["undo"]                   = putStrLn "ERROR: Missing recipe-name and commit hash"
+recipesCommand _ ["undo"]                   = putStrLn "ERROR: Missing blueprint-name and commit hash"
 recipesCommand _ ["undo", _]                = putStrLn "ERROR: Missing commit hash"
 recipesCommand ctx ("undo":recipe:commit:_) =
     undoRecipe ctx recipe commit >>= \r -> handleAPIResponse ctx r
 
 -- | recipe diff <recipe-name> <from-commit> <to-commit>
 -- Show the differences between 2 versions of the recipe
-recipesCommand _ ["diff"]                     = putStrLn "ERROR: Missing recipe-name, from-commit, and to-commit"
+recipesCommand _ ["diff"]                     = putStrLn "ERROR: Missing blueprint-name, from-commit, and to-commit"
 recipesCommand _ ["diff", _]                  = putStrLn "ERROR: Missing from-commit, and to-commit"
 recipesCommand _ ["diff", _, _]               = putStrLn "ERROR: Missing to-commit"
 recipesCommand ctx ("diff":recipe:from:to:_)  = diffRecipe ctx recipe from to >>= \r -> do
@@ -229,8 +229,8 @@ recipesCommand ctx ("diff":recipe:from:to:_)  = diffRecipe ctx recipe from to >>
     response r = fromJust $ decodeRecipesDiffResponse $ fromJust r
     printDiff resp = unless (isJSONOutput ctx) $ mapM_ putStrLn $ prettyRecipeDiff $ rdrDiff resp
 
-recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown recipes command - %s" x
-recipesCommand _    _     = putStrLn "ERROR: Missing recipes command"
+recipesCommand _    (x:_) = putStrLn $ printf "ERROR: Unknown blueprints command - %s" x
+recipesCommand _    _     = putStrLn "ERROR: Missing blueprints command"
 
 -- | Process the recipes freeze show command
 -- Show the frozen recipe in TOML format
@@ -277,11 +277,11 @@ projectsCommand _    _     = putStrLn "ERROR: Missing projects command"
 
 -- Execute a command and print the results
 parseCommand :: CommandCtx -> [String] -> IO ()
-parseCommand ctx ("compose":xs)          = composeCommand ctx xs
-parseCommand ctx ("recipes":"freeze":xs) = recipesFreeze ctx xs
-parseCommand ctx ("recipes":xs)          = recipesCommand ctx xs
-parseCommand ctx ("modules":xs)          = modulesCommand ctx xs
-parseCommand ctx ("projects":xs)         = projectsCommand ctx xs
-parseCommand _   ("help":xs)             = helpCommand xs
-parseCommand _   []                      = helpCommand []
-parseCommand _   _                       = putStrLn "Unknown Command"
+parseCommand ctx ("compose":xs)             = composeCommand ctx xs
+parseCommand ctx ("blueprints":"freeze":xs) = recipesFreeze ctx xs
+parseCommand ctx ("blueprints":xs)          = recipesCommand ctx xs
+parseCommand ctx ("modules":xs)             = modulesCommand ctx xs
+parseCommand ctx ("projects":xs)            = projectsCommand ctx xs
+parseCommand _   ("help":xs)                = helpCommand xs
+parseCommand _   []                         = helpCommand []
+parseCommand _   _                          = putStrLn "Unknown Command"

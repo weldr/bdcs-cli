@@ -170,13 +170,13 @@ sortedDiff = sortBy compareRecipeDiffEntry
 prettyRecipeDiff :: [RecipeDiffEntry] -> [String]
 prettyRecipeDiff entries = map prettyDiffEntry $ sortedDiff entries
 
--- | JSON response for /recipes/diff
+-- | JSON response for /blueprints/diff
 data RecipesDiffResponse = RecipesDiffResponse
     { rdrDiff :: [RecipeDiffEntry]
     } deriving (Eq, Show)
 
 instance FromJSON RecipesDiffResponse where
-  parseJSON = withObject "/recipes/diff response" $ \o -> do
+  parseJSON = withObject "/blueprints/diff response" $ \o -> do
     rdrDiff <- o .: "diff"
     return RecipesDiffResponse{..}
 

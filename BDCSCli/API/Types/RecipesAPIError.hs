@@ -23,13 +23,13 @@ module BDCSCli.API.Types.RecipesAPIError(
 
 import           Data.Aeson
 
--- | RecipesAPIError is used to report errors with the /recipes/ routes
+-- | RecipesAPIError is used to report errors with the /blueprints/ routes
 --
 -- This is converted to a JSON error response that is used in the API responses
 --
 -- > {
--- >     "recipe": "unknown-recipe",
--- >     "msg": "unknown-recipe.toml is not present on branch master"
+-- >     "blueprint": "unknown-blueprint",
+-- >     "msg": "unknown-blueprint.toml is not present on branch master"
 -- > }
 data RecipesAPIError = RecipesAPIError
     { raeRecipe  :: String
@@ -38,12 +38,12 @@ data RecipesAPIError = RecipesAPIError
 
 instance FromJSON RecipesAPIError where
   parseJSON = withObject "API Error" $ \o -> do
-    raeRecipe <- o .: "recipe"
+    raeRecipe <- o .: "blueprint"
     raeMsg    <- o .: "msg"
     return RecipesAPIError{..}
 
 instance ToJSON RecipesAPIError where
   toJSON RecipesAPIError{..} = object
-    [ "recipe".= raeRecipe
-    , "msg"   .= raeMsg
+    [ "blueprint".= raeRecipe
+    , "msg"      .= raeMsg
     ]

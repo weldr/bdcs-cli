@@ -84,23 +84,23 @@ parseOpts argv =
 
 helpText :: String
 helpText = "\
-\  compose tar <recipe>             Depsolve Recipe and compose a tar file using export from bdcs\n\
-\  recipes list                     List the names of the available recipes.\n\
-\          show <recipe,...>        Display the recipe in TOML format.\n\
-\          changes <recipe,...>     Display the changes for each recipe.\n\
-\          diff <recipe-name>       Display the differences between 2 versions of a recipe.\n\
-\               <from-commit>       Commit hash or NEWEST\n\
-\               <to-commit>         Commit hash, NEWEST, or WORKSPACE\n\
-\          save <recipe,...>        Save the recipe to a file, <recipe-name>.toml\n\
-\          delete <recipe>          Delete a recipe from the server\n\
-\          depsolve <recipe,...>    Display the packages needed to install the recipe.\n\
-\          push <recipe>            Push a recipe TOML file to the server.\n\
-\          freeze <recipe,...>      Display the frozen recipe's modules and packages.\n\
-\          freeze show <recipe,...> Display the frozen recipe in TOML format.\n\
-\          freeze save <recipe,...> Save the frozen recipe to a file, <recipe-name>.frozen.toml.\n\
-\          tag <recipe>             Tag the most recent recipe commit as a release.\n\
-\          undo <recipe> <commit>   Undo changes to a recipe by reverting to the selected commit.\n\
-\          workspace <recipe>       Push the recipe TOML to the temporary workspace storage.\n\
+\  compose tar <blueprint>          Depsolve blueprint and compose a tar file using export from bdcs\n\
+\  blueprints list                  List the names of the available blueprints.\n\
+\             show <blueprint,...>        Display the blueprint in TOML format.\n\
+\             changes <blueprint,...>     Display the changes for each blueprint.\n\
+\             diff <blueprint-name>       Display the differences between 2 versions of a blueprint.\n\
+\                  <from-commit>          Commit hash or NEWEST\n\
+\                  <to-commit>            Commit hash, NEWEST, or WORKSPACE\n\
+\             save <blueprint,...>        Save the blueprint to a file, <blueprint-name>.toml\n\
+\             delete <blueprint>          Delete a blueprint from the server\n\
+\             depsolve <blueprint,...>    Display the packages needed to install the blueprint.\n\
+\             push <blueprint>            Push a blueprint TOML file to the server.\n\
+\             freeze <blueprint,...>      Display the frozen blueprint's modules and packages.\n\
+\             freeze show <blueprint,...> Display the frozen blueprint in TOML format.\n\
+\             freeze save <blueprint,...> Save the frozen blueprint to a file, <blueprint-name>.frozen.toml.\n\
+\             tag <blueprint>             Tag the most recent blueprint commit as a release.\n\
+\             undo <blueprint> <commit>   Undo changes to a blueprint by reverting to the selected commit.\n\
+\             workspace <blueprint>       Push the blueprint TOML to the temporary workspace storage.\n\
 \  modules list                     List the available modules.\n\
 \  projects list                    List the available projects.\n\
 \\n"

@@ -31,7 +31,7 @@ data RecipeModule =
     } deriving (Eq, Show)
 
 instance FromJSON RecipeModule where
-  parseJSON = withObject "recipe module" $ \o -> do
+  parseJSON = withObject "blueprint module" $ \o -> do
       rmName    <- o .: "name"
       rmVersion <- o .: "version"
       return RecipeModule{..}
@@ -50,7 +50,7 @@ data Recipe =
     } deriving (Eq, Show)
 
 instance FromJSON Recipe where
-  parseJSON = withObject "recipe" $ \o -> do
+  parseJSON = withObject "blueprint" $ \o -> do
       rName        <- o .:  "name"
       rVersion     <- o .:? "version"
       rDescription <- o .:  "description"
