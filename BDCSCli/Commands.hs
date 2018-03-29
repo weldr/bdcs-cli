@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module BDCSCli.Commands(parseCommand)
@@ -127,11 +128,13 @@ composeCommand _    _      = putStrLn "ERROR: Unknown compose type"
 -- | Process the recipes list command
 -- Prints a JSON or human reable list of available recipes
 recipesCommand :: CommandCtx -> [String] -> IO ()
-recipesCommand ctx ("list":_) = listRecipes ctx >>= \r -> do
-    j <- asValue $ fromJust r
-    if isJSONOutput ctx
-        then putStrLn $ prettyJson $ j ^. responseBody
-        else putStrLn $ "Blueprints: " ++ humanRecipesList j
+recipesCommand ctx ("list":_) = listRecipes ctx >>= \case
+    Nothing -> putStrLn "ERROR: No server response"
+    Just r  -> do
+        j <- asValue r
+        if isJSONOutput ctx
+            then putStrLn $ prettyJson $ j ^. responseBody
+            else putStrLn $ "Blueprints: " ++ humanRecipesList j
 
 -- | Process the recipes show command
 -- Print the TOML recipe
@@ -151,13 +154,17 @@ recipesCommand ctx ("save":xs) = mapM_ saveRecipe $ argify xs
 
 -- | Process the recipe depsolve command
 -- Print the list of package versions needed for the recipe list
-recipesCommand ctx ("depsolve":xs) = depsolveRecipes ctx (intercalate "," xs) >>= \r -> do
-    j <- asValue $ fromJust r
-    if isJSONOutput ctx
-        then putStrLn $ prettyJson $ j ^. responseBody
-        else do
-            let deps = decodeDepsolve $ fromJust r
-            when (isJust deps) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesDepsList $ fromJust deps
+recipesCommand ctx ("depsolve":xs) = depsolveRecipes ctx (intercalate "," xs) >>= \case
+    Nothing -> putStrLn "ERROR: No server response"
+    Just r  -> do
+        j <- asValue r
+        if isJSONOutput ctx
+            then putStrLn $ prettyJson $ j ^. responseBody
+            else do
+                let deps = decodeDepsolve r
+                if isJust deps
+                    then putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesDepsList $ fromJust deps
+                    else putStrLn "ERROR: Cannot decode JSON response"
 
 -- | Process the recipes push command
 -- Create a new recipe on the server, or overwrite an existing one, with a TOML recipe file
@@ -249,9 +256,17 @@ recipesFreeze ctx ("save":xs) = mapM_ saveFrozenRecipe $ argify xs
 
 -- | Process the recipes freeze
 -- Display the recipes' frozen module and packages list in human readable format
-recipesFreeze ctx xs = freezeRecipes ctx (intercalate "," xs) >>= \r -> do
-    let recipes = decodeFreeze $ fromJust r
-    when (isJust recipes) $ putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesFrozenList $ fromJust recipes
+recipesFreeze ctx xs = freezeRecipes ctx (intercalate "," xs) >>= \case
+    Nothing -> putStrLn "ERROR: No server response"
+    Just r  -> do
+        j <- asValue r
+        if isJSONOutput ctx
+            then putStrLn $ prettyJson $ j ^. responseBody
+            else do
+                let recipes = decodeFreeze r
+                if isJust recipes
+                    then putStrLn $ intercalate "\n\n" $ map (intercalate "\n") $ recipesFrozenList $ fromJust recipes
+                    else putStrLn "ERROR: Cannot decode JSON response"
 
 
 -- | Process the modules list command

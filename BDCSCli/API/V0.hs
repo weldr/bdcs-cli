@@ -138,52 +138,61 @@ infoProjects CommandCtx{..} projects = getUrl ctxSession $ apiUrl ctxOptions "pr
 --
 
 
-newtype DependencyJSON =
-    DependencyJSON { djRecipes  :: [RecipeDeps]
+data DependencyJSON = DependencyJSON
+    { djRecipes :: [RecipeDeps]
+    , djErrors  :: [RecipesAPIError]
     } deriving Show
 
 instance FromJSON DependencyJSON where
   parseJSON = withObject "dependency JSON" $ \o -> do
-      djRecipes <- o .: "blueprints"
-      return DependencyJSON{..}
+    djRecipes <- o .: "blueprints"
+    djErrors  <- o .: "errors"
+    return DependencyJSON{..}
 
 instance ToJSON DependencyJSON where
-  toJSON DependencyJSON{..} = object [
-        "blueprints" .= djRecipes ]
+  toJSON DependencyJSON{..} = object
+    [ "blueprints" .= djRecipes
+    , "errors"     .= djErrors
+    ]
 
 
-data RecipeDeps =
-    RecipeDeps { rdRecipe       :: Recipe
-               , rdModules      :: [PackageNEVRA]
-               , rdDependencies :: [PackageNEVRA]
+data RecipeDeps = RecipeDeps
+    { rdRecipe       :: Recipe
+    , rdModules      :: [PackageNEVRA]
+    , rdDependencies :: [PackageNEVRA]
     } deriving Show
 
 instance FromJSON RecipeDeps where
   parseJSON = withObject "blueprint deps" $ \o -> do
-      rdRecipe       <- o .: "blueprints"
-      rdModules      <- o .: "modules"
-      rdDependencies <- o .: "dependencies"
-      return RecipeDeps{..}
+    rdRecipe       <- o .: "blueprint"
+    rdModules      <- o .: "modules"
+    rdDependencies <- o .: "dependencies"
+    return RecipeDeps{..}
 
 instance ToJSON RecipeDeps where
-  toJSON RecipeDeps{..} = object [
-        "blueprints"   .= rdRecipe
-      , "modules"      .= rdModules
-      , "dependencies" .= rdDependencies ]
+  toJSON RecipeDeps{..} = object
+    [ "blueprint"    .= rdRecipe
+    , "modules"      .= rdModules
+    , "dependencies" .= rdDependencies
+    ]
 
 
-newtype FreezeJSON =
-    FreezeJSON { fjRecipes :: [Recipe]
+data FreezeJSON = FreezeJSON
+    { fjRecipes :: [Recipe]
+    , fjErrors  :: [RecipesAPIError]
     } deriving Show
 
 instance FromJSON FreezeJSON where
   parseJSON = withObject "freeze JSON" $ \o -> do
     fjRecipes <- o .: "blueprints"
+    fjErrors  <- o .: "errors"
     return FreezeJSON{..}
 
 instance ToJSON FreezeJSON where
-  toJSON FreezeJSON{..} = object [
-    "blueprints" .= fjRecipes ]
+  toJSON FreezeJSON{..} = object
+    [ "blueprints" .= fjRecipes
+    , "errors"     .= fjErrors
+    ]
 
 
 -- | Package build details
@@ -313,7 +322,11 @@ prettyRecipeChanges recipes =
 
 -- | Name and Version of a Recipe as a String
 recipeNameVersion :: Recipe -> String
-recipeNameVersion Recipe{..} = printf "Recipe: %s v%s" rName (fromMaybe "" rVersion)
+recipeNameVersion Recipe{..} = printf "Blueprint: %s %s" rName (version rVersion)
+  where
+    version Nothing   = ""
+    version (Just "") = ""
+    version (Just v)  = "v" ++ v
 
 -- | Description of a Recipe as a String
 recipeDescription :: Recipe -> String
