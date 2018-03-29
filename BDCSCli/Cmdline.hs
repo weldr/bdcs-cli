@@ -19,8 +19,9 @@ module BDCSCli.Cmdline(CliOptions(..),
                        helpCommand)
   where
 
-import System.Console.GetOpt
-import System.Environment (getArgs)
+import           Data.List(dropWhileEnd)
+import           System.Console.GetOpt
+import           System.Environment(getArgs)
 
 --
 -- Commandline parsing
@@ -41,11 +42,15 @@ defaultOptions    = CliOptions
     { optVerbose     = False
     , optShowVersion = False
     , optJsonOutput  = False
-    , optUrl         = "http://localhost:4000/"
+    , optUrl         = "http://localhost:4000"
     , optApi         = "0"
     , optMDDB        = "/var/tmp/mddb/metadata.db"
     , optRepo        = "/var/tmp/repo/"
     }
+
+-- | Drop any trailing slashes from the string
+dropSlash :: String -> String
+dropSlash = dropWhileEnd (== '/')
 
 cliOptions :: [OptDescr (CliOptions -> CliOptions)]
 cliOptions =
@@ -59,7 +64,7 @@ cliOptions =
         (NoArg (\opts -> opts { optJsonOutput = True }))
         "Show results as JSON objects"
     , Option ['u']     ["url"]
-        (ReqArg (\url opts -> opts { optUrl = url }) "URL")
+        (ReqArg (\url opts -> opts { optUrl = dropSlash url }) "URL")
         "URL to use for the API requests"
     , Option ['a']     ["api"]
         (ReqArg (\api opts -> opts { optApi = api }) "API")
