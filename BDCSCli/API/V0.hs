@@ -59,7 +59,7 @@ import           Control.Lens ((^.))
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
-import           Data.Maybe(fromJust, fromMaybe, isJust)
+import           Data.Maybe(fromJust, isJust)
 import           Network.Wreq
 import           Text.Printf(printf)
 
