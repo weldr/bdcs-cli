@@ -27,7 +27,7 @@ _DEPSOLVE = os.path.join(_TEST_DIR, '..', 'dist', 'build', 'bdcs-cli', 'bdcs-cli
 _DEPSOLVE = [os.path.abspath(_DEPSOLVE)]
 if os.environ.get('START_API_EXTERNALLY'):
     _DEPSOLVE.extend(['--url', 'http://api:4000/'])
-_DEPSOLVE.extend(['recipes', 'depsolve'])
+_DEPSOLVE.extend(['blueprints', 'depsolve'])
 
 _RECIPES = []
 for _dirpath, _dirnames, filenames in os.walk(_RECIPE_DIR):
