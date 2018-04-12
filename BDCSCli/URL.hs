@@ -20,10 +20,11 @@
 module BDCSCli.URL(apiUrl,
                    deleteUrl,
                    getUrl,
-                   postUrl)
+                   postUrl,
+                   postJSONUrl)
   where
 
-import           Control.Lens ((&), (.~))
+import           Control.Lens ((&), (.~), set)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
 import           Data.List (intercalate)
@@ -39,15 +40,29 @@ apiUrl CliOptions{..} route = intercalate "/" [optUrl, "api/v" ++ optApi, route]
 
 -- | Fetch data from a URL and ignore errors by returning Nothing, or a Lazy ByteString
 getUrl :: Session -> String -> IO (Maybe (Response BSL.ByteString))
-getUrl sess url = maybeIO (S.get sess url)
+getUrl sess url = maybeIO (S.getWith opts sess url)
+  where
+    opts = set checkResponse (Just $ \_ _ -> return ()) defaults
 
--- | Post a String to a URL and return the Response from the server, or Nothing
+-- | Post a String to a URL, as TOML,  and return the Response from the server, or Nothing
 postUrl :: Session -> String -> String -> IO (Maybe (Response BSL.ByteString))
 postUrl sess url bodyStr = do
-    let opts = defaults & header "Content-Type" .~ ["text/x-toml"]
     let bodyBytes = C8.pack bodyStr
     maybeIO (S.postWith opts sess url bodyBytes)
+  where
+    opts = set checkResponse (Just $ \_ _ -> return ()) defaults & header "Content-Type" .~ ["text/x-toml"]
+
+-- | Post a String to a URL, as JSON,  and return the Response from the server, or Nothing
+postJSONUrl :: Session -> String -> String -> IO (Maybe (Response BSL.ByteString))
+postJSONUrl sess url bodyStr = do
+    let bodyBytes = C8.pack bodyStr
+    maybeIO (S.postWith opts sess url bodyBytes)
+  where
+    opts = set checkResponse (Just $ \_ _ -> return ()) defaults & header "Content-Type" .~ ["application/json"]
 
 -- | Send a DELETE request to the server and return the Response, or Nothing
 deleteUrl :: Session -> String -> IO (Maybe (Response BSL.ByteString))
-deleteUrl sess url = maybeIO (S.delete sess url)
+deleteUrl sess url = maybeIO (S.deleteWith opts sess url)
+  where
+    opts = set checkResponse (Just $ \_ _ -> return ()) defaults
+
