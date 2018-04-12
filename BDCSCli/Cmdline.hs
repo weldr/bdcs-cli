@@ -89,7 +89,17 @@ parseOpts argv =
 
 helpText :: String
 helpText = "\
-\  compose tar <blueprint>          Depsolve blueprint and compose a tar file using export from bdcs\n\
+\  compose    start <blueprint> <type>    Start a compose using the selected blueprint and output type.\n\
+\             types                       List the supported output types.\n\
+\             status                      List the status of all running and finished composes.\n\
+\             log <uuid> [<size>kB]       Show the last 1kB of the compose log.\n\
+\             cancel <uuid>               Cancel a running compose and delete any intermediate results.\n\
+\             delete <uuid,...>           Delete the listed compose results.\n\
+\             info <uuid>                 Show detailed information on the compose.\n\
+\             metadata <uuid>             Download the metadata use to create the compose to <uuid>-metadata.tar\n\
+\             logs <uuid>                 Download the compose logs to <uuid>-logs.tar\n\
+\             results <uuid>              Download all of the compose results; metadata, logs, and image to <uuid>.tar\n\
+\             image <uuid>                Download the output image from the compose. Filename depends on the type.\n\
 \  blueprints list                  List the names of the available blueprints.\n\
 \             show <blueprint,...>        Display the blueprint in TOML format.\n\
 \             changes <blueprint,...>     Display the changes for each blueprint.\n\

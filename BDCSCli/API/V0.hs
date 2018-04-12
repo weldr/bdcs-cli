@@ -19,6 +19,9 @@
 
 module BDCSCli.API.V0(
     changesRecipes,
+    composeStart,
+    composeTypes,
+    composeTypesList,
     decodeDepsolve,
     decodeFreeze,
     decodeRecipesChangesResponse,
@@ -48,11 +51,16 @@ module BDCSCli.API.V0(
 
 -- re-export some things imported from elsewhere
     decodeAPIResponse,
+    decodeComposeResponse,
+    decodeComposeTypesResponse,
     decodeRecipesDiffResponse,
     prettyRecipeDiff,
 
-    APIResponseJSON(..),
-    RecipesAPIError(..)
+    APIResponse(..),
+    ComposeBody(..),
+    ComposeResponse(..),
+    ComposeType(..),
+    ComposeTypesResponse(..),
 ) where
 
 import           Control.Lens ((^.))
@@ -60,15 +68,17 @@ import           Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C8
 import           Data.Maybe(fromJust, isJust)
+import           Data.String.Conversions(cs)
 import           Network.Wreq
 import           Text.Printf(printf)
 
 import           BDCSCli.CommandCtx(CommandCtx(..))
-import           BDCSCli.URL(apiUrl, getUrl, postUrl, deleteUrl)
-import           BDCSCli.API.Types.APIResponseJSON
+import           BDCSCli.URL(apiUrl, getUrl, postUrl, postJSONUrl, deleteUrl)
+import           BDCSCli.API.Types.APIResponse
+import           BDCSCli.API.Types.ComposeBody
+import           BDCSCli.API.Types.ComposeType
 import           BDCSCli.API.Types.Recipe
 import           BDCSCli.API.Types.RecipeDiff
-import           BDCSCli.API.Types.RecipesAPIError
 
 -- | Request the list of recipes from the API server
 listRecipes :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
@@ -132,6 +142,15 @@ listProjects CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "projects/li
 infoProjects :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
 infoProjects CommandCtx{..} projects = getUrl ctxSession $ apiUrl ctxOptions "projects/info/" ++ projects
 
+-- | Request the list of compose types from the API server
+composeTypes :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
+composeTypes CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "compose/types"
+
+{-# ANN newRecipes ("HLint: ignore Eta reduce"::String) #-}
+-- | POST a compose start JSON string to the API server
+-- TODO add ?test=X support
+composeStart :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+composeStart CommandCtx{..} bodyStr = postJSONUrl ctxSession (apiUrl ctxOptions "compose") bodyStr
 
 --
 -- JSON Data types for parsing the BDCS API responses
@@ -140,7 +159,7 @@ infoProjects CommandCtx{..} projects = getUrl ctxSession $ apiUrl ctxOptions "pr
 
 data DependencyJSON = DependencyJSON
     { djRecipes :: [RecipeDeps]
-    , djErrors  :: [RecipesAPIError]
+    , djErrors  :: [String]
     } deriving Show
 
 instance FromJSON DependencyJSON where
@@ -179,7 +198,7 @@ instance ToJSON RecipeDeps where
 
 data FreezeJSON = FreezeJSON
     { fjRecipes :: [Recipe]
-    , fjErrors  :: [RecipesAPIError]
+    , fjErrors  :: [String]
     } deriving Show
 
 instance FromJSON FreezeJSON where
@@ -284,7 +303,7 @@ instance ToJSON RecipeChanges where
 -- The JSON response for /blueprints/changes
 data RecipesChangesResponse = RecipesChangesResponse
     { rcrRecipes  :: [RecipeChanges]                                    -- ^ Changes for each blueprint
-    , rcrErrors   :: [RecipesAPIError]                                  -- ^ Any errors for the requested changes
+    , rcrErrors   :: [String]                                           -- ^ Any errors for the requested changes
     , rcrOffset   :: Int                                                -- ^ Pagination offset
     , rcrLimit    :: Int                                                -- ^ Pagination limit
     } deriving (Show, Eq)
@@ -408,3 +427,7 @@ recipesFrozenList recipes = map recipeDetails $ getFrozenRecipes recipes
     recipeDetails recipe = [recipeNameVersion recipe] ++ moduleDetails recipe ++ packageDetails recipe
     moduleDetails recipe = map (\m -> "    " ++ moduleNameVersion m) $ getModules recipe
     packageDetails recipe = map (\p -> "    " ++ moduleNameVersion p) $ getPackages recipe
+
+-- | Return a list of compose types
+composeTypesList :: ComposeTypesResponse -> [String]
+composeTypesList ComposeTypesResponse{..} = map (cs . ctName) ctrTypes

@@ -17,8 +17,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module BDCSCli.API.Types.APIResponseJSON(
-    APIResponseJSON(..),
+module BDCSCli.API.Types.APIResponse(
+    APIResponse(..),
     decodeAPIResponse,
 ) where
 
@@ -27,26 +27,24 @@ import           Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as C8
 import           Network.Wreq(Response, responseBody)
 
-import           BDCSCli.API.Types.RecipesAPIError
-
 -- | API Status response with possible error messages
-data APIResponseJSON = APIResponseJSON
+data APIResponse = APIResponse
     { arjStatus :: Bool
-    , arjErrors :: [RecipesAPIError]
-    } deriving Show
+    , arjErrors :: [String]
+    } deriving (Show, Eq)
 
-instance FromJSON APIResponseJSON where
+instance FromJSON APIResponse where
   parseJSON = withObject "API Response JSON" $ \o -> do
     arjStatus <- o .: "status"
     arjErrors <- o .: "errors"
-    return APIResponseJSON{..}
+    return APIResponse{..}
 
-instance ToJSON APIResponseJSON where
-  toJSON APIResponseJSON{..} = object
+instance ToJSON APIResponse where
+  toJSON APIResponse{..} = object
     [ "status" .= arjStatus
     , "errors" .= arjErrors
     ]
 
 -- | Convert the server response into data structures
-decodeAPIResponse :: Response C8.ByteString -> Maybe APIResponseJSON
+decodeAPIResponse :: Response C8.ByteString -> Maybe APIResponse
 decodeAPIResponse resp = decode $ resp ^. responseBody

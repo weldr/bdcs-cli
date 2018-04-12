@@ -20,28 +20,26 @@
 module BDCSCli.Commands(parseCommand)
   where
 
-import Control.Conditional (unlessM)
-import Control.Lens ((^..), (^.))
-import Control.Monad(when, forM_, unless)
-import Data.Aeson
-import Data.Aeson.Encode.Pretty
-import Data.Aeson.Lens (_String, key, values)
+import           Control.Conditional (unlessM)
+import           Control.Lens ((^..), (^.))
+import           Control.Monad(when, unless)
+import           Data.Aeson
+import           Data.Aeson.Encode.Pretty
+import           Data.Aeson.Lens (_String, key, values)
 import qualified Data.ByteString.Lazy.Char8 as C8
-import Data.List (intercalate)
-import Data.Maybe (isJust, fromJust)
+import           Data.List (intercalate)
+import           Data.Maybe (isJust, fromJust)
+import           Data.String.Conversions(cs)
 import qualified Data.Text as T
-import Network.Wreq
-import Text.Printf(printf)
-import System.Process(rawSystem)
-import System.Directory(doesFileExist)
-import System.Exit(exitFailure)
-import System.IO(hClose,hPutStr)
-import System.IO.Temp(withSystemTempFile)
+import           Network.Wreq
+import           Text.Printf(printf)
+import           System.Directory(doesFileExist)
+import           System.Exit(exitFailure)
 
-import BDCSCli.API.V0
-import BDCSCli.Cmdline(CliOptions(..), helpCommand)
-import BDCSCli.CommandCtx(CommandCtx(..))
-import BDCSCli.Utilities(argify)
+import           BDCSCli.API.V0
+import           BDCSCli.Cmdline(CliOptions(..), helpCommand)
+import           BDCSCli.CommandCtx(CommandCtx(..))
+import           BDCSCli.Utilities(argify)
 
 -- | Return the TOML filename, ending with .toml
 tomlFileName :: String -> FilePath
@@ -50,10 +48,6 @@ tomlFileName = printf "%s.toml"
 -- | Return the TOML filename, ending with .frozen.toml
 frozenTomlFileName :: String -> FilePath
 frozenTomlFileName = tomlFileName . printf "%s.frozen"
-
--- | Return the tar filename, ending with .tar
-tarFileName :: String -> FilePath
-tarFileName = printf "%s.tar"
 
 -- | Convert the Value into a pretty JSON string for printing.
 prettyJson :: Value -> String
@@ -65,16 +59,9 @@ humanRecipesList :: Response Value -> String
 humanRecipesList jsonValue = intercalate ", " $ map T.unpack recipes
   where recipes = jsonValue ^.. responseBody . key "blueprints" . values . _String
 
--- | Get the error messages from a list of RecipesAPIError
-getErrors :: [RecipesAPIError] -> [String]
-getErrors errors =
-    [ "ERROR: " ++ recipeName ++ " - " ++ msg
-    | RecipesAPIError { raeRecipe = recipeName, raeMsg = msg } <- errors
-    ]
-
 -- | Print the error messages from an API response
-printErrors :: CommandCtx -> [RecipesAPIError] -> IO ()
-printErrors ctx errors = unless (isJSONOutput ctx) $ mapM_ putStrLn $ getErrors errors
+printErrors :: CommandCtx -> [String] -> IO ()
+printErrors ctx errors = unless (isJSONOutput ctx) $ mapM_ putStrLn errors
 
 -- | Return true if JSON output has been selected
 isJSONOutput :: CommandCtx -> Bool
@@ -86,41 +73,58 @@ printJSON ctx v = when (isJSONOutput ctx) $ putStrLn $ prettyJson $ v ^. respons
 
 -- | Handle printing the errors from an API response
 -- optionally print the raw JSON
+-- Prints errors if there is no server response, or if it cannot decode the JSON
 handleAPIResponse :: CommandCtx -> Maybe (Response C8.ByteString) -> IO ()
-handleAPIResponse ctx r = do
-    j <- asValue $ fromJust r
+handleAPIResponse ctx mresp = case mresp of
+    Nothing -> putStrLn "ERROR: No server response"
+    Just r -> do
+        j <- asValue r
 
-    printJSON ctx j
-    printErrors ctx errors
+        printJSON ctx j
+        printErrors ctx $ errors r
 
     -- TODO Return a status to use for the exit code
   where
-    response = fromJust $ decodeAPIResponse $ fromJust r
-    errors = arjErrors response
-
+    errors r = case decodeAPIResponse r of
+        Nothing  -> ["ERROR: Cannot decode JSON response"]
+        Just r' -> arjErrors r'
 
 -- | Process the compose types command
 -- Prints a list of the supported compose types
 composeCommand :: CommandCtx -> [String] -> IO ()
-composeCommand _ ("types":_) =
-    -- API has a list of compose types, but we are not currently using that
-    putStrLn "tar"
+composeCommand ctx ("types":_) = composeTypes ctx >>= \case
+    Nothing -> putStrLn "ERROR: No server response"
+    Just r  -> do
+        j <- asValue r
+        if isJSONOutput ctx
+            then putStrLn $ prettyJson $ j ^. responseBody
+            else case decodeComposeTypesResponse r of
+                Just cTypes -> putStrLn $ "Compose types: " ++ intercalate ", " (composeTypesList cTypes)
+                Nothing     -> putStrLn "ERROR: Cannot decode JSON response"
 
-composeCommand _   ["tar"]          = putStrLn "ERROR: missing recipe name"
-composeCommand ctx ("tar":recipe:_) = depsolveRecipes ctx recipe >>= \r -> do
-    let deps = decodeDepsolve $ fromJust r
---    when (isJust deps) $ composeTar opts $ fromJust deps
-    forM_ deps composeTar
+-- | Start a compose of a recipe
+-- TODO Add support for --test=X cmdline option
+-- TODO Add support for --branch=X cmdline option
+composeCommand _   ["start"]                 = putStrLn "ERROR: missing blueprint and compose type"
+composeCommand _   ["start", _]              = putStrLn "ERROR: missing compose type"
+composeCommand ctx ("start":blueprint:ctype:_) =
+    composeStart ctx composeBodyString >>= \case
+        Nothing -> putStrLn "ERROR: No server response"
+        Just r  -> case r ^. responseStatus . statusCode of
+            400 -> handleAPIResponse ctx $ Just r
+            200 -> printBuildUUID r
+            s   -> printf "ERROR: Unknown status %d: %s\n" s (cs $ r ^. responseStatus . statusMessage :: String)
   where
-    composeTar deps = withSystemTempFile "bdcs-deps-" $ \tmpFile hFile -> do
-        -- write deps to tmpFile
-        hPutStr hFile $ intercalate "\n" $ getDepNEVRAList deps
-        hClose hFile
-        let tarFile = tarFileName recipe
-        let mddbPath = optMDDB $ ctxOptions ctx
-        let repoPath = optRepo $ ctxOptions ctx
-        printf "Creating tar of %s, saving to %s\n" recipe tarFile
-        rawSystem "export" [mddbPath, repoPath, tarFile, tmpFile]
+    composeBodyString = C8.unpack $ encode $ toJSON $ ComposeBody bpText ctText Nothing
+    bpText = T.pack blueprint
+    ctText = T.pack ctype
+    printBuildUUID r = do
+        j <- asValue r
+        if isJSONOutput ctx
+            then putStrLn $ prettyJson $ j ^. responseBody
+            else case decodeComposeResponse r of
+                Just build  -> printf "Compose %s added to the queue\n" (crBuildID build)
+                Nothing     -> putStrLn "ERROR: Cannot decode JSON response"
 
 composeCommand _    _      = putStrLn "ERROR: Unknown compose type"
 

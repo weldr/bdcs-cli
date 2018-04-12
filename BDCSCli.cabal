@@ -17,10 +17,11 @@ cabal-version:          >=1.10
 
 library
   exposed-modules:      BDCSCli.API.V0
-                        BDCSCli.API.Types.APIResponseJSON
+                        BDCSCli.API.Types.APIResponse
+                        BDCSCli.API.Types.ComposeBody
+                        BDCSCli.API.Types.ComposeType
                         BDCSCli.API.Types.Recipe
                         BDCSCli.API.Types.RecipeDiff
-                        BDCSCli.API.Types.RecipesAPIError
                         BDCSCli.Cmdline
                         BDCSCli.Commands
                         BDCSCli.CommandCtx
@@ -36,6 +37,7 @@ library
                         gi-gio,
                         gi-ggit,
                         gi-glib >= 2.0.15 && < 2.1,
+                        http-client,
                         htoml,
                         lens,
                         lens-aeson,
@@ -43,6 +45,7 @@ library
                         process,
                         semver,
                         split,
+                        string-conversions >= 0.4.0 && < 0.5,
                         temporary,
                         text,
                         wreq
