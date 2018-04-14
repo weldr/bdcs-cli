@@ -19,7 +19,9 @@ library
   exposed-modules:      BDCSCli.API.V0
                         BDCSCli.API.Types.APIResponse
                         BDCSCli.API.Types.ComposeBody
+                        BDCSCli.API.Types.ComposeStatus
                         BDCSCli.API.Types.ComposeType
+                        BDCSCli.API.Types.QueueStatus
                         BDCSCli.API.Types.Recipe
                         BDCSCli.API.Types.RecipeDiff
                         BDCSCli.Cmdline
@@ -46,8 +48,10 @@ library
                         semver,
                         split,
                         string-conversions >= 0.4.0 && < 0.5,
+                        time,
                         temporary,
                         text,
+                        tostring,
                         wreq
   default-language:     Haskell2010
   ghc-options:          -Wall -Wno-unused-do-bind

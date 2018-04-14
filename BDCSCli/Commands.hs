@@ -126,6 +126,50 @@ composeCommand ctx ("start":blueprint:ctype:_) =
                 Just build  -> printf "Compose %s added to the queue\n" (crBuildID build)
                 Nothing     -> putStrLn "ERROR: Cannot decode JSON response"
 
+-- | Print the status of the queue, all finished and all failed builds
+composeCommand ctx ("status":_) = do
+    queue >>= \case
+        (Nothing, _)         -> putStrLn "ERROR: No server response"
+        (Just r, [new, run]) -> do
+            j <- asValue r
+            if isJSONOutput ctx
+                then putStrLn $ prettyJson $ j ^. responseBody
+                else mapM_ (printf "%s") $ new ++ run
+
+    finished >>= \case
+        (Nothing, _)         -> putStrLn "ERROR: No server response"
+        (Just r, f) -> do
+            j <- asValue r
+            if isJSONOutput ctx
+                then putStrLn $ prettyJson $ j ^. responseBody
+                else mapM_ (printf "%s") f
+
+    failed >>= \case
+        (Nothing, _)         -> putStrLn "ERROR: No server response"
+        (Just r, f) -> do
+            j <- asValue r
+            if isJSONOutput ctx
+                then putStrLn $ prettyJson $ j ^. responseBody
+                else mapM_ (printf "%s") f
+  where
+    queue = composeQueue ctx >>= \case
+        Nothing -> return (Nothing, [])
+        Just r  -> case decodeComposeQueueResponse r of
+            Nothing      -> return (Just r, [])
+            Just qStatus -> return (Just r, [cqrNew qStatus, cqrRun qStatus])
+
+    finished = composeFinished ctx >>= \case
+        Nothing -> return (Nothing, [])
+        Just r  -> case decodeComposeFinishedResponse r of
+            Nothing -> return (Just r, [])
+            Just f  -> return (Just r, cfrFinished f)
+
+    failed = composeFailed ctx >>= \case
+        Nothing -> return (Nothing, [])
+        Just r  -> case decodeComposeFailedResponse r of
+            Nothing -> return (Just r, [])
+            Just f  -> return (Just r, cfrFailed f)
+
 composeCommand _    _      = putStrLn "ERROR: Unknown compose type"
 
 

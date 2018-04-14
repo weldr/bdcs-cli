@@ -19,6 +19,9 @@
 
 module BDCSCli.API.V0(
     changesRecipes,
+    composeFailed,
+    composeFinished,
+    composeQueue,
     composeStart,
     composeTypes,
     composeTypesList,
@@ -52,13 +55,22 @@ module BDCSCli.API.V0(
 -- re-export some things imported from elsewhere
     decodeAPIResponse,
     decodeComposeResponse,
+    decodeComposeFinishedResponse,
+    decodeComposeFailedResponse,
+    decodeComposeQueueResponse,
+    decodeComposeStatusResponse,
     decodeComposeTypesResponse,
     decodeRecipesDiffResponse,
     prettyRecipeDiff,
 
     APIResponse(..),
     ComposeBody(..),
+    ComposeFailedResponse(..),
+    ComposeFinishedResponse(..),
+    ComposeQueueResponse(..),
     ComposeResponse(..),
+    ComposeStatus(..),
+    ComposeStatusResponse(..),
     ComposeType(..),
     ComposeTypesResponse(..),
 ) where
@@ -76,6 +88,7 @@ import           BDCSCli.CommandCtx(CommandCtx(..))
 import           BDCSCli.URL(apiUrl, getUrl, postUrl, postJSONUrl, deleteUrl)
 import           BDCSCli.API.Types.APIResponse
 import           BDCSCli.API.Types.ComposeBody
+import           BDCSCli.API.Types.ComposeStatus
 import           BDCSCli.API.Types.ComposeType
 import           BDCSCli.API.Types.Recipe
 import           BDCSCli.API.Types.RecipeDiff
@@ -151,6 +164,18 @@ composeTypes CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "compose/typ
 -- TODO add ?test=X support
 composeStart :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
 composeStart CommandCtx{..} bodyStr = postJSONUrl ctxSession (apiUrl ctxOptions "compose") bodyStr
+
+-- | Request the status of the queue
+composeQueue :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
+composeQueue CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "compose/queue"
+
+-- | Request the status of the queue
+composeFinished :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
+composeFinished CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "compose/finished"
+
+-- | Request the status of the queue
+composeFailed :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
+composeFailed CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "compose/failed"
 
 --
 -- JSON Data types for parsing the BDCS API responses
