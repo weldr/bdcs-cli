@@ -16,6 +16,7 @@
 -- along with bdcs-cli.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module BDCSCli.Commands(parseCommand)
   where
@@ -169,6 +170,25 @@ composeCommand ctx ("status":_) = do
         Just r  -> case decodeComposeFailedResponse r of
             Nothing -> return (Just r, [])
             Just f  -> return (Just r, cfrFailed f)
+
+composeCommand ctx ("delete":xs) = composeDelete ctx (intercalate "," xs) >>= \case
+    Nothing -> putStrLn "ERROR: No server response"
+    Just r  -> do
+        j <- asValue r
+        if isJSONOutput ctx
+            then putStrLn $ prettyJson $ j ^. responseBody
+            else case decodeComposeDeleteResponse r of
+                Nothing    -> putStrLn "ERROR: Problem decoding response"
+                Just uuids -> do
+                    mapM_ printUuidStatus $ cdrUuids uuids
+                    mapM_ printUuidError $ cdrErrors uuids
+  where
+    statusString :: Bool -> String
+    statusString True  = "Ok"
+    statusString False = "Failed"
+
+    printUuidStatus UuidStatus{..} = printf "%s: %s\n" usUuid (statusString usStatus)
+    printUuidError UuidError{..} = printf "%s: ERROR - %s\n" ueUuid ueMsg
 
 composeCommand _    _      = putStrLn "ERROR: Unknown compose type"
 

@@ -19,6 +19,7 @@
 
 module BDCSCli.API.V0(
     changesRecipes,
+    composeDelete,
     composeFailed,
     composeFinished,
     composeQueue,
@@ -54,6 +55,7 @@ module BDCSCli.API.V0(
 
 -- re-export some things imported from elsewhere
     decodeAPIResponse,
+    decodeComposeDeleteResponse,
     decodeComposeResponse,
     decodeComposeFinishedResponse,
     decodeComposeFailedResponse,
@@ -65,6 +67,7 @@ module BDCSCli.API.V0(
 
     APIResponse(..),
     ComposeBody(..),
+    ComposeDeleteResponse(..),
     ComposeFailedResponse(..),
     ComposeFinishedResponse(..),
     ComposeQueueResponse(..),
@@ -73,6 +76,8 @@ module BDCSCli.API.V0(
     ComposeStatusResponse(..),
     ComposeType(..),
     ComposeTypesResponse(..),
+    UuidStatus(..),
+    UuidError(..)
 ) where
 
 import           Control.Lens ((^.))
@@ -88,6 +93,7 @@ import           BDCSCli.CommandCtx(CommandCtx(..))
 import           BDCSCli.URL(apiUrl, getUrl, postUrl, postJSONUrl, deleteUrl)
 import           BDCSCli.API.Types.APIResponse
 import           BDCSCli.API.Types.ComposeBody
+import           BDCSCli.API.Types.ComposeDelete
 import           BDCSCli.API.Types.ComposeStatus
 import           BDCSCli.API.Types.ComposeType
 import           BDCSCli.API.Types.Recipe
@@ -176,6 +182,10 @@ composeFinished CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "compose/
 -- | Request the status of the queue
 composeFailed :: CommandCtx -> IO (Maybe (Response BSL.ByteString))
 composeFailed CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "compose/failed"
+
+-- | DELETE a build's results
+composeDelete :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+composeDelete CommandCtx{..} uuids = deleteUrl ctxSession $ apiUrl ctxOptions "compose/delete/" ++ uuids
 
 --
 -- JSON Data types for parsing the BDCS API responses
