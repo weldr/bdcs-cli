@@ -29,7 +29,7 @@ import           Data.Aeson.Encode.Pretty
 import           Data.Aeson.Lens (_String, key, values)
 import qualified Data.ByteString.Lazy.Char8 as C8
 import           Data.List (intercalate)
-import           Data.Maybe (isJust, fromJust)
+import           Data.Maybe (isJust, fromJust, fromMaybe)
 import           Data.String.Conversions(cs)
 import qualified Data.Text as T
 import           Network.Wreq
@@ -189,6 +189,37 @@ composeCommand ctx ("delete":xs) = composeDelete ctx (intercalate "," xs) >>= \c
 
     printUuidStatus UuidStatus{..} = printf "%s: %s\n" usUuid (statusString usStatus)
     printUuidError UuidError{..} = printf "%s: ERROR - %s\n" ueUuid ueMsg
+
+composeCommand ctx ("details":uuid:_) = composeInfo ctx uuid >>= \case
+    Nothing -> putStrLn "ERROR: No server response"
+    Just r  -> do
+        j <- asValue r
+        if isJSONOutput ctx
+            then putStrLn $ prettyJson $ j ^. responseBody
+            else case decodeComposeInfoResponse r of
+                Nothing      -> putStrLn "ERROR: Problem decoding response"
+                Just details -> do
+                    printDetails details
+                    printDeps details
+  where
+    printDetails d = printf "%s %-8s %-15s %s %-16s\n" build_id queue_status bp_name bp_version compose_type
+      where
+        build_id = cirBuildId d
+        queue_status = cirQueueStatus d
+        compose_type = cirType d
+        bp = cirBlueprint d
+        bp_name = rName bp
+        bp_version = fromMaybe "" (rVersion bp)
+    printDeps d = do
+        printf "Packages:\n"
+        mapM_ (\p -> putStrLn $ "    " ++ moduleNameVersion p) bp_packages
+
+        printf "Modules:\n"
+        mapM_ (\m -> putStrLn $ "    " ++ moduleNameVersion m) bp_modules
+      where
+        bp = cirBlueprint d
+        bp_modules = getModules bp
+        bp_packages = getPackages bp
 
 composeCommand _    _      = putStrLn "ERROR: Unknown compose type"
 

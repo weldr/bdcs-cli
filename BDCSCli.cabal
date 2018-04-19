@@ -20,6 +20,7 @@ library
                         BDCSCli.API.Types.APIResponse
                         BDCSCli.API.Types.ComposeBody
                         BDCSCli.API.Types.ComposeDelete
+                        BDCSCli.API.Types.ComposeInfo
                         BDCSCli.API.Types.ComposeStatus
                         BDCSCli.API.Types.ComposeType
                         BDCSCli.API.Types.QueueStatus

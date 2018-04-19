@@ -22,6 +22,7 @@ module BDCSCli.API.V0(
     composeDelete,
     composeFailed,
     composeFinished,
+    composeInfo,
     composeQueue,
     composeStart,
     composeTypes,
@@ -35,11 +36,14 @@ module BDCSCli.API.V0(
     freezeRecipes,
     freezeRecipeToml,
     getDepNEVRAList,
+    getModules,
+    getPackages,
     infoProjects,
     infoRecipes,
     listModules,
     listProjects,
     listRecipes,
+    moduleNameVersion,
     newRecipes,
     prettyRecipeChanges,
     recipesDepsList,
@@ -48,8 +52,6 @@ module BDCSCli.API.V0(
     undoRecipe,
     workspaceRecipes,
 
-    Recipe(..),
-    RecipeModule(..),
     RecipesChangesResponse(..),
     RecipesDiffResponse(..),
 
@@ -59,6 +61,7 @@ module BDCSCli.API.V0(
     decodeComposeResponse,
     decodeComposeFinishedResponse,
     decodeComposeFailedResponse,
+    decodeComposeInfoResponse,
     decodeComposeQueueResponse,
     decodeComposeStatusResponse,
     decodeComposeTypesResponse,
@@ -70,12 +73,15 @@ module BDCSCli.API.V0(
     ComposeDeleteResponse(..),
     ComposeFailedResponse(..),
     ComposeFinishedResponse(..),
+    ComposeInfoResponse(..),
     ComposeQueueResponse(..),
     ComposeResponse(..),
     ComposeStatus(..),
     ComposeStatusResponse(..),
     ComposeType(..),
     ComposeTypesResponse(..),
+    Recipe(..),
+    RecipeModule(..),
     UuidStatus(..),
     UuidError(..)
 ) where
@@ -94,6 +100,7 @@ import           BDCSCli.URL(apiUrl, getUrl, postUrl, postJSONUrl, deleteUrl)
 import           BDCSCli.API.Types.APIResponse
 import           BDCSCli.API.Types.ComposeBody
 import           BDCSCli.API.Types.ComposeDelete
+import           BDCSCli.API.Types.ComposeInfo
 import           BDCSCli.API.Types.ComposeStatus
 import           BDCSCli.API.Types.ComposeType
 import           BDCSCli.API.Types.Recipe
@@ -186,6 +193,10 @@ composeFailed CommandCtx{..} = getUrl ctxSession $ apiUrl ctxOptions "compose/fa
 -- | DELETE a build's results
 composeDelete :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
 composeDelete CommandCtx{..} uuids = deleteUrl ctxSession $ apiUrl ctxOptions "compose/delete/" ++ uuids
+
+-- | Info about a build
+composeInfo :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
+composeInfo CommandCtx{..} uuid = getUrl ctxSession $ apiUrl ctxOptions "compose/info/" ++ uuid
 
 --
 -- JSON Data types for parsing the BDCS API responses
