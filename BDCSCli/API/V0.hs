@@ -22,8 +22,12 @@ module BDCSCli.API.V0(
     composeDelete,
     composeFailed,
     composeFinished,
+    composeImage,
     composeInfo,
+    composeLogs,
+    composeMetadata,
     composeQueue,
+    composeResults,
     composeStart,
     composeTypes,
     composeTypesList,
@@ -96,6 +100,7 @@ import           Network.Wreq
 import           Text.Printf(printf)
 
 import           BDCSCli.CommandCtx(CommandCtx(..))
+import           BDCSCli.FileDownload(fileWithProgress)
 import           BDCSCli.URL(apiUrl, getUrl, postUrl, postJSONUrl, deleteUrl)
 import           BDCSCli.API.Types.APIResponse
 import           BDCSCli.API.Types.ComposeBody
@@ -197,6 +202,22 @@ composeDelete CommandCtx{..} uuids = deleteUrl ctxSession $ apiUrl ctxOptions "c
 -- | Info about a build
 composeInfo :: CommandCtx -> String -> IO (Maybe (Response BSL.ByteString))
 composeInfo CommandCtx{..} uuid = getUrl ctxSession $ apiUrl ctxOptions "compose/info/" ++ uuid
+
+-- | Log files from a build
+composeLogs :: CommandCtx -> String -> IO ()
+composeLogs CommandCtx{..} uuid = fileWithProgress (apiUrl ctxOptions "compose/logs/" ++ uuid) (uuid ++ "-logs.tar")
+
+-- | Metadata files from a build
+composeMetadata :: CommandCtx -> String -> IO ()
+composeMetadata CommandCtx{..} uuid = fileWithProgress (apiUrl ctxOptions "compose/metadata/" ++ uuid) (uuid ++ "-metadata.tar")
+
+-- | Results from a build (image, metadata, logs)
+composeResults :: CommandCtx -> String -> IO ()
+composeResults CommandCtx{..} uuid = fileWithProgress (apiUrl ctxOptions "compose/results/" ++ uuid) (uuid ++ "-results.tar")
+
+-- | Image from a build
+composeImage :: CommandCtx -> String -> IO ()
+composeImage CommandCtx{..} uuid = fileWithProgress (apiUrl ctxOptions "compose/image/" ++ uuid) (uuid ++ "-image.bin")
 
 --
 -- JSON Data types for parsing the BDCS API responses

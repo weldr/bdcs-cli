@@ -221,6 +221,14 @@ composeCommand ctx ("details":uuid:_) = composeInfo ctx uuid >>= \case
         bp_modules = getModules bp
         bp_packages = getPackages bp
 
+composeCommand ctx ("logs":uuid:_) = composeLogs ctx uuid
+
+composeCommand ctx ("metadata":uuid:_) = composeMetadata ctx uuid
+
+composeCommand ctx ("results":uuid:_) = composeResults ctx uuid
+
+composeCommand ctx ("image":uuid:_) = composeImage ctx uuid
+
 composeCommand _    _      = putStrLn "ERROR: Unknown compose type"
 
 
