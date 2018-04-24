@@ -20,7 +20,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module BDCSCli.FileDownload(
-    fileWithProgress
+    fileWithProgress,
+    getFilename
 ) where
 
 import           Data.ByteString (ByteString)
@@ -74,8 +75,7 @@ getFilename Nothing = Nothing
 getFilename (Just header) =
     case find (isPrefixOf " filename") $ endBy ";" $ cs header of
         Nothing -> Nothing
-        Just kv -> case splitOn "=" kv of
-            []            -> Nothing
-            [_]           -> Nothing
-            [_, ""]       -> Nothing
-            [_, filename] -> Just $ takeFileName filename
+        Just kv -> case reverse (splitOn "=" kv) of
+            ["",_]       -> Nothing
+            [filename,_] -> Just $ takeFileName filename
+            _            -> Nothing
