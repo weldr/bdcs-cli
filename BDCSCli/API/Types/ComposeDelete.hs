@@ -19,7 +19,6 @@
 
 module BDCSCli.API.Types.ComposeDelete(
         ComposeDeleteResponse(..),
-        UuidError(..),
         UuidStatus(..),
 
         decodeComposeDeleteResponse
@@ -31,24 +30,9 @@ import qualified Data.Text as T
 import qualified Data.ByteString.Lazy.Char8 as C8
 import           Network.Wreq(Response, responseBody)
 
-data UuidError = UuidError {
-    ueMsg  :: T.Text,
-    ueUuid :: T.Text
-} deriving (Show, Eq)
-
-instance ToJSON UuidError where
-    toJSON UuidError{..} = object [
-        "msg"   .= ueMsg,
-        "uuid"  .= ueUuid ]
-
-instance FromJSON UuidError where
-    parseJSON = withObject "UUID error type" $ \o ->
-        UuidError <$> o .: "msg"
-                  <*> o .: "uuid"
-
 data UuidStatus = UuidStatus {
     usStatus :: Bool,
-    usUuid :: T.Text
+    usUuid   :: T.Text
 } deriving (Show, Eq)
 
 instance ToJSON UuidStatus where
@@ -62,7 +46,7 @@ instance FromJSON UuidStatus where
                    <*> o .: "uuid"
 
 data ComposeDeleteResponse = ComposeDeleteResponse {
-    cdrErrors :: [UuidError],
+    cdrErrors :: [String],
     cdrUuids  :: [UuidStatus]
 } deriving (Show, Eq)
 

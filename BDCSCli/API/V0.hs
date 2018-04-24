@@ -87,7 +87,6 @@ module BDCSCli.API.V0(
     Recipe(..),
     RecipeModule(..),
     UuidStatus(..),
-    UuidError(..)
 ) where
 
 import           Control.Lens ((^.))

@@ -189,7 +189,7 @@ composeCommand ctx ("delete":xs) = composeDelete ctx (intercalate "," xs) >>= \c
     statusString False = "Failed"
 
     printUuidStatus UuidStatus{..} = printf "%s: %s\n" usUuid (statusString usStatus)
-    printUuidError UuidError{..} = printf "%s: ERROR - %s\n" ueUuid ueMsg
+    printUuidError err = printf "ERROR - %s\n" err
 
 composeCommand ctx ("details":uuid:_) = composeInfo ctx uuid >>= \case
     Nothing -> putStrLn "ERROR: No server response"
