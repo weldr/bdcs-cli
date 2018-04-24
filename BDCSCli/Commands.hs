@@ -136,6 +136,7 @@ composeCommand ctx ("status":_) = do
             if isJSONOutput ctx
                 then putStrLn $ prettyJson $ j ^. responseBody
                 else mapM_ (printf "%s") $ new ++ run
+        (Just _, _)          -> putStrLn "ERROR: Unexpected server response"
 
     finished >>= \case
         (Nothing, _)         -> putStrLn "ERROR: No server response"

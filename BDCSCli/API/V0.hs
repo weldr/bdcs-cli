@@ -414,10 +414,6 @@ recipeNameVersion Recipe{..} = printf "Blueprint: %s %s" rName (version rVersion
     version (Just "") = ""
     version (Just v)  = "v" ++ v
 
--- | Description of a Recipe as a String
-recipeDescription :: Recipe -> String
-recipeDescription Recipe{..} = printf "    %s" rDescription
-
 -- | Package NEVRA as a String, only including epoch when it is > 0
 packageNEVRA :: PackageNEVRA -> String
 packageNEVRA PackageNEVRA{..} =
@@ -440,11 +436,6 @@ getPackages Recipe{..} = rPackages
 getDepRecipe :: RecipeDeps -> Recipe
 getDepRecipe RecipeDeps{..} = rdRecipe
 
--- | Get the module list from the depsolve
--- includes the exact versions of the recipe's modules and packages
-getDepModules :: RecipeDeps -> [PackageNEVRA]
-getDepModules RecipeDeps{..} = rdModules
-
 -- | Get all the dependencies needed for the recipe
 getDependencies :: RecipeDeps -> [PackageNEVRA]
 getDependencies RecipeDeps{..} = rdDependencies
@@ -464,10 +455,6 @@ getDepNEVRAList deps = map packageNEVRA $ concatMap getDependencies $ getDepReci
 -- | Convert the server response into data structures
 decodeDepsolve :: Response C8.ByteString -> Maybe DependencyJSON
 decodeDepsolve resp = decode $ resp ^. responseBody
-
--- | Extract the names and versions of the recipes in the depsolve response
-recipesList :: DependencyJSON -> [String]
-recipesList deps = map (recipeNameVersion . getDepRecipe) $ getDepRecipes deps
 
 -- | Extract the dependency list from the depsolve response
 dependenciesList :: RecipeDeps -> [String]

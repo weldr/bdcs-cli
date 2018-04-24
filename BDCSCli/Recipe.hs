@@ -402,15 +402,13 @@ commitDetails repo revwalk branch filename details next_id = do
         -- Fill in a commit record
         message <- Git.commitGetMessage commit_obj >>= maybeThrow GetMessageError
         commit_str <- Git.oIdToString commit_id >>= maybeThrow OIdError
-        sig <- Git.commitGetCommitter commit_obj >>= maybeThrow GetCommitterError
-
-        -- XXX No Idea How To Convert These Yet
-        datetime <- Git.signatureGetTime sig >>= maybeThrow GetTimeError
-        timezone <- Git.signatureGetTimeZone sig >>= maybeThrow GetTimeZoneError
-        -- What do you do with the TimeZone?
+        -- sig <- Git.commitGetCommitter commit_obj >>= maybeThrow GetCommitterError
+        -- datetime <- Git.signatureGetTime sig >>= maybeThrow GetTimeError
+        -- timezone <- Git.signatureGetTimeZone sig >>= maybeThrow GetTimeZoneError
+        -- TODO What do you do with the datetime and timezone?
         timeval <- GLib.newZeroTimeVal
-        ok <- GLib.dateTimeToTimeval datetime timeval
-        -- XXX Handle error (ok == False)
+        -- ok <- GLib.dateTimeToTimeval datetime timeval
+        -- TODO Handle error (ok == False)
         time_str <- GLib.timeValToIso8601 timeval >>= maybeThrow GetTimeError
 
         let commit = CommitDetails {cdCommit=commit_str, cdTime=time_str, cdMessage=message, cdRevision=revision}
@@ -558,12 +556,6 @@ commitRecipeDirectory repo branch directory = do
   where
     skipFiles :: [T.Text] -> String -> Bool
     skipFiles branch_files file = T.pack file `notElem` branch_files && ".toml" `isSuffixOf` file
-
-printOId :: Git.OId -> IO ()
-printOId oid =
-    Git.oIdToString oid >>= print
-
-
 
 
 -- =========================
