@@ -1,4 +1,4 @@
-FROM fedora:27
+FROM fedora:28
 
 RUN dnf -y install python3-dnf-plugins-core && \
     dnf -y copr enable @weldr/bdcs && \
@@ -6,9 +6,9 @@ RUN dnf -y install python3-dnf-plugins-core && \
     dnf -y install --enablerepo=updates-testing \
                    sudo cabal-install cabal-rpm sqlite python3-toml \
                    https://kojipkgs.fedoraproject.org/packages/python-parameterized/0.6.1/2.fc28/noarch/python3-parameterized-0.6.1-2.fc28.noarch.rpm \
-                   gobject-introspection-devel \
+                   gobject-introspection-devel hlint happy \
                    ghc-haskell-gi-devel libgit2-glib-devel \
-                   ostree beakerlib bdcs libcurl-devel
+                   ostree beakerlib bdcs libcurl-devel make
 
 # source is bind-mounted here
 WORKDIR /bdcs-cli

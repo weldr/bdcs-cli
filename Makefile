@@ -21,10 +21,13 @@ bdcs-cli: sandbox
 clean:
 	cabal clean
 
-hlint: sandbox
-	[ -x .cabal-sandbox/bin/happy ] || cabal install happy
-	[ -x .cabal-sandbox/bin/hlint ] || cabal install hlint
-	.cabal-sandbox/bin/hlint .
+hlint:
+	if [ -z "$$(which hlint)" ]; then \
+	    echo hlint not found in PATH - install it; \
+	    exit 1; \
+	else \
+	    hlint .; \
+	fi
 
 tests: sandbox
 	# TODO: shouldn't we install dependencies from RPMs instead ?
