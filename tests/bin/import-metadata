@@ -26,16 +26,24 @@ DNF_ROOT=`mktemp -d /tmp/dnf.root.XXXXXX`
 DNF_DOWNLOAD=`mktemp -d /tmp/dnf.download.XXXXXX`
 
 # first depsolve via dnf and download all the RPMs
-./tests/bin/recipes2rpms | xargs sudo dnf install -y --nogpgcheck --releasever=26 \
-                                                     --downloadonly --downloaddir=$DNF_DOWNLOAD \
-                                                     --installroot=$DNF_ROOT
+# one recipe at a time
+for RECIPE_FILE in ./examples/recipes/*.toml; do
+    RECIPE_NAME=`basename $RECIPE_FILE | sed 's/\.toml//'`
+    ./tests/bin/recipe2rpms $RECIPE_FILE | xargs sudo dnf install -y --nogpgcheck --releasever=26 \
+                                                     --downloadonly --downloaddir=$DNF_DOWNLOAD/$RECIPE_NAME \
+                                                     --installroot=$DNF_ROOT/$RECIPE_NAME
+    # save RPM manifest for each recipe, ignoring epoch 0 to match bdcs output
+    find $DNF_DOWNLOAD/$RECIPE_NAME -name "*.rpm" -exec rpm -qp --qf "%{name}-%{evr}.%{arch}\n" '{}' \; 2>/dev/null | \
+        sed 's/-0:/-/' | sort > $RECIPE_NAME.dnf_manifest
+done
 
 # download additional RPMs which are weak dependencies (e.g. Suggests:)
+#TODO: in which dir should these be downloaded
 sudo dnf install -y --nogpgcheck --releasever=26 --downloadonly --downloaddir=$DNF_DOWNLOAD \
                     --installroot=$DNF_ROOT perl-Authen-SASL perl-Business-ISBN
 
 # then import all RPMs
-for F in $DNF_DOWNLOAD/*.rpm; do
+for F in `find $DNF_DOWNLOAD -name "*.rpm"`; do
     $IMPORT $METADATA $IMPORT_REPO file://$F
 done
 
