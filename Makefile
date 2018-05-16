@@ -35,7 +35,6 @@ tests: sandbox
 	cabal configure --enable-tests --enable-coverage --ghc-option=-DTEST
 	cabal build
 	cabal test --show-details=always
-	./tests/test_binary.sh
 
 test-in-docker: Dockerfile.build
 	sudo docker network inspect welder || sudo docker network create welder
