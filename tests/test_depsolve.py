@@ -60,6 +60,7 @@ class DepsolveTestCase(unittest.TestCase):
         # step 1: can we resolve all the dependencies
         try:
             recipe_name = recipe_file.replace('.toml', '')
+
             depsolve_output = exec_depsolve(recipe_name)
             # remove the first line which is something like:
             # Recipe: glusterfs v0.0.1\n
@@ -67,13 +68,26 @@ class DepsolveTestCase(unittest.TestCase):
             # we don't want to accidentally match a package name against
             # the recipe name when they exist (e.g. atlas)
             depsolve_output = depsolve_output.strip().split('\n')[1:]
-
-            # then turn back the list into a string to make
-            # assertions below easier
-            depsolve_output = '\n'.join(depsolve_output)
+            depsolve_output = [rpm.strip() for rpm in depsolve_output]
+            depsolve_output.sort()
         except CalledProcessError as err:
             self.assertEqual('', err.output)
             self.fail('depsolve failed!')
+
+
+        with open(os.path.join(_TEST_DIR, '..', recipe_name + '.dnf_manifest'), 'r') as f:
+            dnf_manifest = f.read().strip().split('\n')
+        dnf_manifest.sort()
+
+        # all depsolved packages *MUST* be included in dnf depsolver
+        # however DNF also includes additional dependencies and the two
+        # will never be the same
+        for pkg in depsolve_output:
+            self.assertIn(pkg, dnf_manifest)
+
+        # turn the list back into a string to make
+        # assertions below easier
+        depsolve_output = '\n'.join(depsolve_output)
 
         # step 2: is what the user wanted still in the list
         for pkg in expected_packages:
